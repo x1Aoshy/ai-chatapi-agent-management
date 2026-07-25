@@ -5,10 +5,10 @@ Panel de administración web para operar el bot sin entrar por SSH.
 > **Estado.** El frontend está implementado en [`panel/`](../panel): Next.js 16
 > con App Router, autenticación con Supabase y las cinco páginas del plan.
 >
-> **El middleware del servidor AWS todavía NO existe.** Sin él, el panel
-> arranca y autentica, pero cada página muestra el aviso "Sin conexión con el
-> servidor": no hay nada al otro lado que responda a sus llamadas. La sección
-> "Middleware en el servidor AWS" de este documento es su especificación.
+> **El middleware del servidor está implementado** en [`server/`](../server).
+> Queda desplegarlo en el servidor AWS y ponerle TLS delante; hasta entonces el
+> panel muestra "Sin conexión con el servidor". Instrucciones en
+> [`server/README.md`](../server/README.md).
 
 ---
 
@@ -46,15 +46,18 @@ Panel de administración web para operar el bot sin entrar por SSH.
 
 ## Middleware en el servidor AWS
 
-El panel necesita un servicio intermedio en el servidor (**puerto 5001**) que
-exponga endpoints seguros para que Vercel pueda operar la infraestructura.
-Vercel **nunca** habla directamente con Chatwoot, Evolution, Redis ni PM2.
+Servicio intermedio en el servidor (**puerto 5001**) que expone endpoints
+seguros para que Vercel pueda operar la infraestructura. Vercel **nunca** habla
+directamente con Chatwoot, Evolution, Redis ni PM2.
+
+Implementado en [`server/`](../server). Lo que sigue es la especificación que
+cumple; el detalle de despliegue está en su README.
 
 ```
 Navegador → Vercel (API Routes) → Middleware :5001 → {archivos, PM2, Redis, APIs}
 ```
 
-### Endpoints previstos
+### Endpoints
 
 | Método | Ruta | Función |
 |--------|------|---------|
@@ -121,24 +124,22 @@ suficiente para este volumen. SSE o WebSocket solo si el polling se queda corto.
 
 ---
 
-## Orden de trabajo restante
+## Puesta en marcha
 
-El frontend ya está construido: las cinco páginas, la autenticación y los route
-handlers viven en `panel/`. Lo que falta es el otro extremo.
+Las dos piezas están escritas. Lo que queda es desplegar el middleware y
+conectar los extremos, en este orden:
 
-1. **Middleware con `/api/health` y `/api/logs`** (solo lectura). Es lo que
-   permite validar la conectividad Vercel → AWS sin riesgo de romper el bot, y
-   con eso el Dashboard y la página de Logs ya funcionan.
-2. **Reverse proxy con TLS** delante del middleware. Antes de este paso la API
-   key viaja en claro en cada petición.
-3. `/api/whatsapp/*` y `/api/redis/*` — la página de Conexiones. Sigue siendo
-   sobre todo lectura, salvo el borrado de memoria.
-4. `/api/instructions` con versionado y rollback — primera escritura sobre un
-   archivo del que depende el bot en caliente.
-5. `/api/env` y `/api/restart` — lo más sensible. Lista blanca de claves y
-   enmascarado obligatorios; el panel ya valida por su lado, pero el middleware
-   debe hacerlo también.
+1. **Instalar el middleware** en el servidor y arrancarlo con PM2. Verificar en
+   local con `curl http://localhost:5001/ping`.
+2. **Reverse proxy con TLS** delante. Antes de este paso la clave viaja en
+   claro en cada petición, así que no se debe apuntar el panel todavía.
+3. **`AGENT_API_URL` y `AGENT_API_KEY`** en Vercel, ámbito Production, y
+   redeploy. Vercel no aplica variables nuevas a un despliegue ya hecho.
+4. **Comprobar el Dashboard.** Si los cinco servicios aparecen con su estado,
+   la cadena completa funciona.
 
-Cada escalón añade riesgo sobre el anterior, y detenerse tras el primero ya
-cubre la mayor parte del valor operativo diario: ver el estado del sistema sin
-entrar por SSH.
+El detalle de cada paso está en [`server/README.md`](../server/README.md).
+
+Si algo falla, el orden de diagnóstico es el mismo: `/ping` sin clave confirma
+que el proceso vive; `/api/health` con clave confirma que la autenticación y
+las sondas funcionan; y solo entonces tiene sentido mirar el panel.
