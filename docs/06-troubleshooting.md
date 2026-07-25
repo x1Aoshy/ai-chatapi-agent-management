@@ -116,6 +116,42 @@ antes de reintentar. **Cierra el puerto 3333 en el Security Group al terminar.**
 
 ---
 
+## El QR se escanea pero WhatsApp dice que no se puede vincular
+
+**Síntoma.** El código aparece, el teléfono lo lee, y responde que no se pudo
+vincular el dispositivo.
+
+**Causa 1: el código ya había caducado.** Un QR de WhatsApp vive unos 20-30
+segundos, bastante menos de lo que parece. Si la pantalla lo refresca más
+despacio que eso, casi siempre se escanea uno muerto. El panel lo renueva cada
+18 s por este motivo.
+
+**Causa 2: Evolution agotó su cupo.** Cada sesión de emparejamiento emite un
+número limitado de códigos (`QRCODE_LIMIT`). Al alcanzarlo sigue devolviendo un
+QR, pero ya no vincula. El panel muestra el contador y avisa a partir del
+cuarto.
+
+**Solución.** Reiniciar la instancia para arrancar una sesión limpia — botón
+"Reiniciar instancia" en el diálogo del QR, o desde el servidor:
+
+```bash
+curl -s -X POST "http://localhost:8080/instance/restart/ventas" \
+  -H "apikey: $EVOLUTION_API_KEY"
+# Evolution 1.x usa PUT en lugar de POST
+```
+
+Si tras reiniciar sigue sin vincular, comprueba el estado antes de insistir:
+
+```bash
+curl -s "http://localhost:8080/instance/connectionState/ventas" \
+  -H "apikey: $EVOLUTION_API_KEY"
+```
+
+Un `state: "connecting"` permanente suele significar que la sesión anterior no
+se cerró bien: haz `DELETE /instance/logout/ventas` y vuelve a empezar.
+
+---
+
 ## El bot no recibe mensajes nuevos
 
 **Síntoma.** Los mensajes llegan a Chatwoot (se ven en el panel web) pero el bot

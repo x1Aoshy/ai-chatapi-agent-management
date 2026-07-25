@@ -79,7 +79,17 @@ async function handleQr(_req, res, next) {
      * vincular. El QR de vinculación es un formato del que WhatsApp es la
      * autoridad, no un dato que se pueda re-serializar sin más.
      */
-    res.json({ base64: body.base64 ?? null, code: body.code ?? null });
+    /*
+     * `count` es cuántos QR lleva emitidos Evolution en esta sesión de
+     * emparejamiento. Importa porque hay un tope (QRCODE_LIMIT): al llegar
+     * deja de emitir y la instancia necesita reiniciarse. Sin este dato, el
+     * síntoma es "el QR no vincula" sin ninguna pista de por qué.
+     */
+    res.json({
+      base64: body.base64 ?? null,
+      code: body.code ?? null,
+      count: typeof body.count === 'number' ? body.count : null,
+    });
   } catch (error) {
     next(error);
   }
@@ -91,6 +101,49 @@ const qrLimit = rateLimit({ windowMs: 60_000, max: 5 });
 // la desconexión; POST se mantiene porque ya había clientes apuntando ahí.
 whatsappRouter.get('/whatsapp/qr', qrLimit, handleQr);
 whatsappRouter.post('/whatsapp/connect', qrLimit, handleQr);
+
+/**
+ * Reinicia la instancia de Evolution.
+ *
+ * Es el remedio cuando el QR deja de vincular: Evolution agota su cupo de
+ * códigos por sesión de emparejamiento y sigue devolviendo uno ya inservible.
+ * Reiniciar arranca una sesión limpia.
+ *
+ * El verbo cambió entre versiones de Evolution (PUT en la 1.x, POST en la 2.x),
+ * así que se prueban ambos antes de darlo por fallido: es preferible eso a que
+ * el operador se quede sin salida por un 404 de método.
+ */
+whatsappRouter.post(
+  '/whatsapp/restart',
+  rateLimit({ windowMs: 60_000, max: 3 }),
+  async (_req, res, next) => {
+    if (!config.evolution.apiKey) {
+      return res.status(503).json({ error: 'EVOLUTION_API_KEY no está configurada.' });
+    }
+
+    try {
+      let response;
+
+      for (const method of ['POST', 'PUT']) {
+        response = await fetch(evolutionUrl('/instance/restart'), {
+          method,
+          headers: evolutionHeaders(),
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (response.status !== 404 && response.status !== 405) break;
+      }
+
+      if (!response.ok) {
+        return res.status(502).json({ error: `Evolution respondió ${response.status}.` });
+      }
+
+      console.log('[whatsapp] instancia reiniciada');
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 /**
  * Cierra la sesión de WhatsApp.
