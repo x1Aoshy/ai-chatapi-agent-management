@@ -107,6 +107,16 @@ export async function getBotStatus() {
   };
 }
 
+/**
+ * Vacía los archivos de log del bot (`pm2 flush`).
+ *
+ * Es destructivo y no hay deshacer: PM2 trunca los archivos, no los archiva.
+ * Por eso el panel pide confirmación antes de llegar aquí.
+ */
+export async function flushLogs() {
+  await pm2(['flush', config.bot.processName]);
+}
+
 export async function restartBot() {
   // --update-env es obligatorio: sin él PM2 conserva el entorno del arranque
   // anterior y los cambios en .env no surten efecto.

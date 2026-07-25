@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History, Loader2, RotateCcw, Save } from "lucide-react";
+import { History, Loader2, RotateCcw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { NotConfigured } from "@/components/not-configured";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useAgentData } from "@/hooks/use-agent-data";
+import { formatBytes, relativeTime } from "@/lib/format";
 import type { InstructionsResponse, InstructionVersion } from "@/lib/types";
 
 export function TrainingEditor() {
@@ -129,6 +130,25 @@ export function TrainingEditor() {
     }
   }
 
+  async function onDeleteVersion(versionId: string) {
+    try {
+      const response = await fetch(`/api/instructions/versions/${versionId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(body?.error ?? `Error ${response.status}`);
+        return;
+      }
+
+      toast.success("Versión eliminada.");
+      versions.refresh();
+    } catch {
+      toast.error("No se pudo contactar con el servidor.");
+    }
+  }
+
   if (loading) return <Skeleton className="h-96" />;
 
   if (error) {
@@ -136,13 +156,13 @@ export function TrainingEditor() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <Card>
         <CardHeader className="flex-row items-center justify-between border-b border-border">
           <div className="space-y-1">
             <CardTitle>instrucciones.txt</CardTitle>
             <p className="text-xs text-muted-foreground">
-              {new Blob([draft]).size} bytes
+              {formatBytes(new Blob([draft]).size)}
               {dirty ? (
                 <span className="text-warning"> · sin guardar</span>
               ) : (
@@ -165,7 +185,7 @@ export function TrainingEditor() {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             spellCheck={false}
-            className="min-h-[32rem] resize-y border-0 font-mono text-xs leading-relaxed focus-visible:ring-0"
+            className="min-h-[24rem] resize-y border-0 font-mono text-xs leading-relaxed focus-visible:ring-0 lg:min-h-[34rem]"
             aria-label="Contenido de instrucciones.txt"
           />
         </CardContent>
@@ -177,6 +197,9 @@ export function TrainingEditor() {
             <History className="size-4" />
             Historial
           </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Se archiva una copia antes de cada guardado.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           {versions.loading ? (
@@ -192,22 +215,35 @@ export function TrainingEditor() {
                   className="flex items-center justify-between gap-2 px-4 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-mono text-xs">
-                      {new Date(version.createdAt).toLocaleString("es")}
+                    <p
+                      className="truncate text-xs"
+                      title={new Date(version.createdAt).toLocaleString("es")}
+                    >
+                      {relativeTime(version.createdAt)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {version.bytes} bytes
+                      {formatBytes(version.bytes)}
                       {version.author ? ` · ${version.author}` : ""}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRollback(version.id)}
-                    title="Restaurar esta versión"
-                  >
-                    <RotateCcw className="size-3.5" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRollback(version.id)}
+                      title="Restaurar esta versión"
+                    >
+                      <RotateCcw className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDeleteVersion(version.id)}
+                      title="Eliminar esta versión"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>

@@ -119,6 +119,38 @@ instructionsRouter.get('/instructions/versions', async (_req, res, next) => {
   }
 });
 
+/**
+ * Borra una versión del historial.
+ *
+ * Se valida el identificador igual que en el rollback: acaba formando parte de
+ * una ruta de disco, y aquí además se BORRA lo que apunte, así que una ruta que
+ * escapara del directorio sería mucho peor que leer de más.
+ */
+instructionsRouter.delete('/instructions/versions/:id', async (req, res, next) => {
+  const { id } = req.params;
+
+  if (!VERSION_ID_RE.test(id)) {
+    return res.status(400).json({ error: 'Identificador de versión inválido.' });
+  }
+
+  const versionPath = path.join(config.bot.historyDir, id);
+
+  if (path.dirname(path.resolve(versionPath)) !== path.resolve(config.bot.historyDir)) {
+    return res.status(400).json({ error: 'Identificador de versión inválido.' });
+  }
+
+  try {
+    await fs.unlink(versionPath);
+    console.log(`[instructions] versión ${id} eliminada`);
+    res.json({ ok: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({ error: 'Esa versión no existe.' });
+    }
+    next(error);
+  }
+});
+
 instructionsRouter.post('/instructions/rollback', async (req, res, next) => {
   const { versionId } = req.body ?? {};
 
