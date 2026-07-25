@@ -5,7 +5,53 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { createClient } from 'redis';
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { buildSystemPrompt, searchKnowledge } from './knowledge.js';
+
+/*
+ * Ruta ABSOLUTA, derivada de la ubicación de este archivo.
+ *
+ * Antes era 'instrucciones.txt' a secas, que Node resuelve contra el
+ * directorio de trabajo del proceso y no contra el del script. Basta con que
+ * PM2 arranque el bot desde otro sitio para que no lo encuentre.
+ */
+const BOT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const INSTRUCTIONS_PATH = path.join(BOT_DIR, 'instrucciones.txt');
+
+/*
+ * Prompt de reserva. Es UNA FRASE: sin personalidad, sin catálogo, sin las
+ * reglas que impiden hablar de otros temas o revelar qué modelo hay detrás.
+ * Un bot con esto puesto atiende a clientes reales sin ninguna restricción, así
+ * que caer aquí tiene que ser ruidoso, nunca silencioso.
+ */
+const FALLBACK_PROMPT = 'Eres Marcos, asistente virtual.';
+
+/** null = aún sin comprobar. Evita repetir el aviso en cada mensaje. */
+let instructionsOk = null;
+
+function loadInstructions() {
+  try {
+    const content = fs.readFileSync(INSTRUCTIONS_PATH, 'utf8');
+
+    if (instructionsOk === false) {
+      console.log('✅ instrucciones.txt vuelve a leerse correctamente');
+    }
+    instructionsOk = true;
+    return content;
+  } catch (error) {
+    // Solo se avisa al cambiar de estado: en cada mensaje llenaría el log.
+    if (instructionsOk !== false) {
+      console.error(
+        '🚨 NO se pudo leer ' + INSTRUCTIONS_PATH + ' (' + error.code + ').\n' +
+        '   El bot está respondiendo SIN reglas, SIN catálogo y SIN restricciones.'
+      );
+      instructionsOk = false;
+    }
+    return FALLBACK_PROMPT;
+  }
+}
 
 const app = express();
 app.use(express.json());
@@ -50,8 +96,7 @@ app.post('/webhook', async (req, res) => {
         return;
       }
 
-      let conocimientos = 'Eres Marcos, asistente virtual.';
-      try { conocimientos = fs.readFileSync('instrucciones.txt', 'utf8'); } catch(e) {}
+      const conocimientos = loadInstructions();
 
       // Recuperar historial de Redis
       const historyKey = 'chat_history:' + conversationId;
@@ -172,4 +217,19 @@ async function handoffToHuman(accountId, conversationId) {
   }
 }
 
-app.listen(5000, () => console.log('Enrutador IA listo en puerto 5000'));
+app.listen(5000, () => {
+  console.log('Enrutador IA listo en puerto 5000');
+
+  /*
+   * Comprobación al arrancar. Sin esto, un archivo ilocalizable solo se nota
+   * cuando un cliente recibe una respuesta que no debía recibir.
+   */
+  const prompt = loadInstructions();
+  if (prompt === FALLBACK_PROMPT) {
+    console.error('   Esperado en: ' + INSTRUCTIONS_PATH);
+  } else {
+    console.log(
+      '📄 instrucciones.txt cargado (' + Buffer.byteLength(prompt, 'utf8') + ' bytes)'
+    );
+  }
+});
