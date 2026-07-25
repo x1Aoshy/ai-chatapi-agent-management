@@ -1,0 +1,149 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * AI Management — sistema de diseño
+ *
+ * Estilo Vercel/Linear: superficie casi negra, jerarquía por borde de 1px y no
+ * por sombra, esquinas vivas, paleta monocromática. El verde es el único color
+ * con carga semántica y se reserva para el estado "online".
+ *
+ * La interfaz es dark-only: los tokens viven directamente en :root en lugar de
+ * duplicarse en un bloque .dark, porque no hay tema claro que alternar.
+ */
+:root {
+  --radius: 0rem;
+
+  /* Superficies */
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --card: #0a0a0a;
+  --card-foreground: #ededed;
+  --popover: #0f0f0f;
+  --popover-foreground: #ededed;
+
+  /* Acciones */
+  --primary: #ededed;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ededed;
+  --accent: #1a1a1a;
+  --accent-foreground: #ededed;
+
+  /* Texto y superficies atenuadas */
+  --muted: #141414;
+  --muted-foreground: #8f8f8f;
+
+  /* Trazos */
+  --border: #1f1f1f;
+  --input: #1f1f1f;
+  --ring: #2e2e2e;
+
+  /*
+   * Estados. El verde marca "online" y nada más.
+   * Rojo y ámbar existen porque un panel operativo tiene que poder distinguir
+   * un fallo de una degradación; se usan solo en esos casos, nunca decorativos.
+   * "offline" es gris a propósito: ausencia de señal, no error.
+   */
+  --online: #22c55e;
+  --offline: #4d4d4d;
+  --warning: #d9a441;
+  --destructive: #e5484d;
+  --destructive-foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-online: var(--online);
+  --color-offline: var(--offline);
+  --color-warning: var(--warning);
+
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", monospace;
+
+  /* Esquinas vivas en todos los tamaños: el sistema no usa radio. */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* El foco se marca con un anillo fino, coherente con el trazo de 1px. */
+  *:focus-visible {
+    @apply outline-none ring-1 ring-ring;
+  }
+
+  ::selection {
+    background: #2e2e2e;
+    color: #ffffff;
+  }
+
+  /* Scrollbars discretas, en la misma paleta que los bordes. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #262626;
+    border: 3px solid var(--background);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a3a3a;
+  }
+}
+
+@layer utilities {
+  /* Rejilla de fondo sutil, al estilo de las cabeceras de Vercel. */
+  .bg-grid {
+    background-image: linear-gradient(to right, #141414 1px, transparent 1px),
+      linear-gradient(to bottom, #141414 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /*
+   * Halo del punto "online". Es la única sombra del sistema y no es decorativa:
+   * da al indicador de estado un peso visual que un círculo de 6px no alcanza.
+   */
+  .dot-online-glow {
+    box-shadow: 0 0 0 3px rgb(34 197 94 / 0.15);
+  }
+}

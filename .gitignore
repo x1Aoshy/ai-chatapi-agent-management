@@ -1,0 +1,32 @@
+# Entorno / secretos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Next.js / Vercel (AI Management)
+.next/
+out/
+build/
+.vercel
+
+# Logs
+logs/
+*.log
+pm2.log
+
+# SO / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
