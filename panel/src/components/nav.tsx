@@ -11,6 +11,7 @@ import {
   Terminal,
 } from "lucide-react";
 
+import { Signature, Wordmark } from "@/components/wordmark";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -26,9 +27,8 @@ export function Nav({ email }: { email?: string }) {
 
   return (
     <aside className="flex h-full w-56 shrink-0 flex-col border-r border-border">
-      <div className="flex h-14 items-center gap-2.5 border-b border-border px-5">
-        <div className="size-4 border border-foreground" aria-hidden="true" />
-        <span className="text-sm font-medium tracking-tight">AI Management</span>
+      <div className="flex h-14 items-center border-b border-border px-5">
+        <Wordmark />
       </div>
 
       <nav className="flex-1 space-y-px p-2">
@@ -74,6 +74,8 @@ export function Nav({ email }: { email?: string }) {
             Cerrar sesión
           </button>
         </form>
+
+        <Signature className="px-3 pb-1 pt-3" />
       </div>
     </aside>
   );

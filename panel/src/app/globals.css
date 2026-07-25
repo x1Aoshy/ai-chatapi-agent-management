@@ -79,6 +79,7 @@
   --color-warning: var(--warning);
 
   --font-sans: var(--font-inter);
+  --font-display: var(--font-display);
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", monospace;
 
   /* Esquinas vivas en todos los tamaños: el sistema no usa radio. */

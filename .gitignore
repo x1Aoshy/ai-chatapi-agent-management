@@ -20,7 +20,10 @@ build/
 .vercel
 
 # Logs
-logs/
+# Anclado a la raíz a propósito: sin la barra inicial, este patrón coincide con
+# CUALQUIER carpeta llamada "logs" a cualquier profundidad, y llegó a excluir
+# del repositorio las rutas del panel (app/(app)/logs y app/api/logs) sin avisar.
+/logs/
 *.log
 pm2.log
 
