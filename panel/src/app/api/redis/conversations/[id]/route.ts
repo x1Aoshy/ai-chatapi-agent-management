@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 /**
  * Borra la memoria de una conversación (`DEL chat_history:{id}`).
  *
- * En Next.js 15 los params de ruta son asíncronos.
+ * En Next.js 16 los params de ruta son asíncronos.
  */
 export async function DELETE(
   _request: Request,

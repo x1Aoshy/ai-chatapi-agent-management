@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle, Loader2, RotateCw, Save } from "lucide-react";
 import { toast } from "sonner";
 
@@ -22,12 +22,19 @@ export function SettingsForm() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [syncedData, setSyncedData] = useState(data);
 
-  // Al recargar del servidor se descartan los cambios locales: lo que se
-  // muestra debe ser siempre lo que hay en el .env.
-  useEffect(() => {
+  /*
+   * Al llegar datos nuevos del servidor se descartan los cambios locales: lo
+   * que se muestra debe ser siempre lo que hay en el .env.
+   *
+   * Se ajusta en render en lugar de en un efecto, para no encadenar un
+   * repintado extra cada vez que se recarga.
+   */
+  if (data !== syncedData) {
+    setSyncedData(data);
     setEdits({});
-  }, [data]);
+  }
 
   const dirty = Object.keys(edits).length > 0;
 

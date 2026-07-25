@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { History, Loader2, RotateCcw, Save } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,12 +26,23 @@ export function TrainingEditor() {
   // sin guardar sin tener que volver a pedirlo.
   const [saved, setSaved] = useState("");
 
-  useEffect(() => {
-    if (data?.content !== undefined) {
-      setDraft(data.content);
-      setSaved(data.content);
-    }
-  }, [data?.content]);
+  // Último contenido recibido del servidor. Se guarda aparte de `saved`
+  // porque al guardar se actualiza `saved` en local sin volver a pedir el
+  // archivo: comparar contra él reintroduciría el contenido antiguo.
+  const [serverContent, setServerContent] = useState<string | null>(null);
+
+  /*
+   * Sincroniza el editor con lo que devuelve el servidor.
+   *
+   * Se ajusta en render y no en un efecto: es el patrón que React recomienda
+   * para derivar estado de datos que cambian, y evita el repintado extra que
+   * provoca un setState dentro de useEffect.
+   */
+  if (data?.content !== undefined && data.content !== serverContent) {
+    setServerContent(data.content);
+    setSaved(data.content);
+    setDraft(data.content);
+  }
 
   const dirty = draft !== saved;
 

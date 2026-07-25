@@ -63,7 +63,7 @@
 │                    aimanagement-panel.vercel.app                 │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │   Next.js 15 (App Router)                                 │   │
+│  │   Next.js 16 (App Router)                                 │   │
 │  │   + Supabase Auth + DB                                    │   │
 │  │   + shadcn/ui                                             │   │
 │  └──────────────────────────────────────────────────────────┘   │

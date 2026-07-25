@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 /**
  * Exige una sesión válida en un route handler.
  *
- * El middleware ya redirige a /login al tráfico sin sesión, pero esto es
- * defensa en profundidad: el matcher del middleware es una regex y un cambio
+ * proxy.ts ya redirige a /login al tráfico sin sesión, pero esto es
+ * defensa en profundidad: el matcher de proxy.ts es una regex y un cambio
  * descuidado podría dejar /api fuera. Los handlers hablan con la
  * infraestructura usando la API key, así que no pueden depender de una sola
  * capa de control.

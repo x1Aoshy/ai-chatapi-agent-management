@@ -13,7 +13,7 @@ function isPublicPath(pathname: string) {
 /**
  * Refresca el token de sesión y protege las rutas.
  *
- * Se ejecuta en cada petición que casa con el matcher del middleware. Es el
+ * Se ejecuta en cada petición que casa con el matcher de proxy.ts. Es el
  * único punto donde la sesión se renueva, así que la respuesta que devuelve
  * debe conservar las cookies que Supabase haya reescrito.
  */

@@ -38,7 +38,7 @@ export function LoginForm() {
       return;
     }
 
-    // El destino viene del middleware, que lo guarda al interceptar una ruta
+    // El destino viene de proxy.ts, que lo guarda al interceptar una ruta
     // protegida. Se fuerza que sea una ruta interna para evitar un open
     // redirect si alguien manipula el parámetro.
     const next = searchParams.get("next");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface AgentDataState<T> {
   data: T | null;
@@ -28,52 +28,67 @@ export function useAgentData<T>(
     status: null,
   });
 
-  // Evita que una respuesta lenta de una petición ya obsoleta pise a una más
-  // reciente.
-  const requestId = useRef(0);
+  // Se incrementa para forzar una relectura desde fuera del efecto.
+  const [reloadToken, setReloadToken] = useState(0);
 
-  const refresh = useCallback(async () => {
-    const id = ++requestId.current;
-
-    try {
-      const response = await fetch(path, { cache: "no-store" });
-      const body = await response.json().catch(() => null);
-
-      if (id !== requestId.current) return;
-
-      if (!response.ok) {
-        setState({
-          data: null,
-          error: body?.error ?? `Error ${response.status}`,
-          loading: false,
-          status: response.status,
-        });
-        return;
-      }
-
-      setState({ data: body as T, error: null, loading: false, status: 200 });
-    } catch (error) {
-      if (id !== requestId.current) return;
-
-      setState({
-        data: null,
-        error: error instanceof Error ? error.message : "Fallo de red.",
-        loading: false,
-        status: null,
-      });
-    }
-  }, [path]);
+  const refresh = useCallback(() => {
+    setReloadToken((token) => token + 1);
+  }, []);
 
   useEffect(() => {
     if (!enabled) return;
 
-    refresh();
+    // Descarta respuestas de peticiones ya obsoletas —y de este efecto una vez
+    // desmontado— para que una respuesta lenta no pise a otra más reciente.
+    let active = true;
+    const controller = new AbortController();
 
-    if (!pollMs) return;
+    async function load() {
+      try {
+        const response = await fetch(path, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => null);
 
-    const interval = setInterval(refresh, pollMs);
-    return () => clearInterval(interval);
-  }, [refresh, pollMs, enabled]);
+        if (!active) return;
+
+        if (!response.ok) {
+          setState({
+            data: null,
+            error: body?.error ?? `Error ${response.status}`,
+            loading: false,
+            status: response.status,
+          });
+          return;
+        }
+
+        setState({ data: body as T, error: null, loading: false, status: 200 });
+      } catch (error) {
+        // El abort al desmontar entra por aquí y no es un fallo que mostrar.
+        if (!active || (error instanceof Error && error.name === "AbortError")) {
+          return;
+        }
+
+        setState({
+          data: null,
+          error: error instanceof Error ? error.message : "Fallo de red.",
+          loading: false,
+          status: null,
+        });
+      }
+    }
+
+    void load();
+
+    const interval = pollMs ? setInterval(() => void load(), pollMs) : undefined;
+
+    return () => {
+      active = false;
+      controller.abort();
+      if (interval) clearInterval(interval);
+    };
+  }, [path, pollMs, enabled, reloadToken]);
 
   return { ...state, refresh };
 }

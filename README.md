@@ -17,7 +17,7 @@ con memoria conversacional en Redis y escalado a agente humano.
 | Bot IA | Node.js + Express + OpenAI SDK → DeepSeek | PM2, puerto 5000 |
 | Memoria | Redis | Local, puerto 6379 |
 | Base de datos | PostgreSQL (de Chatwoot) | Docker, puerto 5432 |
-| Panel admin | Next.js 15 + Supabase + shadcn/ui | Vercel (planificado) |
+| Panel admin | Next.js 16 + Supabase + shadcn/ui | Vercel (planificado) |
 
 ---
 
@@ -55,7 +55,7 @@ Ver [docs/05-operaciones.md](docs/05-operaciones.md) para el procedimiento de de
 
 ## Panel "AI Management"
 
-Panel de administración en [`panel/`](panel/): Next.js 15 (App Router), Supabase
+Panel de administración en [`panel/`](panel/): Next.js 16 (App Router), Supabase
 para autenticación y shadcn/ui sobre un tema monocromático dark.
 
 ```

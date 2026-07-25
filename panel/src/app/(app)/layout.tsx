@@ -4,7 +4,7 @@ import { Nav } from "@/components/nav";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Shell autenticado. El middleware ya redirige al tráfico sin sesión, pero se
+ * Shell autenticado. proxy.ts ya redirige al tráfico sin sesión, pero se
  * vuelve a comprobar aquí para obtener el usuario que se muestra en la barra
  * lateral y para no depender de una sola capa.
  */

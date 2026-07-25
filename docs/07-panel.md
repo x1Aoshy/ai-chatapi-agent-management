@@ -2,7 +2,7 @@
 
 Panel de administración web para operar el bot sin entrar por SSH.
 
-> **Estado.** El frontend está implementado en [`panel/`](../panel): Next.js 15
+> **Estado.** El frontend está implementado en [`panel/`](../panel): Next.js 16
 > con App Router, autenticación con Supabase y las cinco páginas del plan.
 >
 > **El middleware del servidor AWS todavía NO existe.** Sin él, el panel
@@ -14,7 +14,7 @@ Panel de administración web para operar el bot sin entrar por SSH.
 
 ## Stack
 
-- **Next.js 15** (App Router) + Tailwind CSS + **shadcn/ui**
+- **Next.js 16** (App Router) + Tailwind CSS + **shadcn/ui**
 - **Supabase** — Auth + PostgreSQL
 - **Vercel** — despliegue en `aimanagement-panel.vercel.app`
 - Comunicación con el servidor AWS vía API Routes seguras
@@ -121,15 +121,24 @@ suficiente para este volumen. SSE o WebSocket solo si el polling se queda corto.
 
 ---
 
-## Orden de trabajo sugerido
+## Orden de trabajo restante
 
-1. **Middleware primero**, con `/api/health` y `/api/logs` (solo lectura). Es lo que
-   permite validar la conectividad Vercel → AWS sin riesgo de romper el bot.
-2. Reverse proxy con TLS delante del middleware.
-3. Next.js + Supabase Auth + `/login` y `/` (dashboard sobre `/api/health`).
-4. `/logs` y `/connections` — siguen siendo solo lectura.
-5. `/training` con versionado y rollback — primera funcionalidad de escritura.
-6. `/settings` — la más sensible; lista blanca de claves y enmascarado obligatorios.
+El frontend ya está construido: las cinco páginas, la autenticación y los route
+handlers viven en `panel/`. Lo que falta es el otro extremo.
 
-Cada escalón añade riesgo sobre el anterior; llegar a un panel de solo lectura ya
-cubre la mayor parte del valor operativo diario.
+1. **Middleware con `/api/health` y `/api/logs`** (solo lectura). Es lo que
+   permite validar la conectividad Vercel → AWS sin riesgo de romper el bot, y
+   con eso el Dashboard y la página de Logs ya funcionan.
+2. **Reverse proxy con TLS** delante del middleware. Antes de este paso la API
+   key viaja en claro en cada petición.
+3. `/api/whatsapp/*` y `/api/redis/*` — la página de Conexiones. Sigue siendo
+   sobre todo lectura, salvo el borrado de memoria.
+4. `/api/instructions` con versionado y rollback — primera escritura sobre un
+   archivo del que depende el bot en caliente.
+5. `/api/env` y `/api/restart` — lo más sensible. Lista blanca de claves y
+   enmascarado obligatorios; el panel ya valida por su lado, pero el middleware
+   debe hacerlo también.
+
+Cada escalón añade riesgo sobre el anterior, y detenerse tras el primero ya
+cubre la mayor parte del valor operativo diario: ver el estado del sistema sin
+entrar por SSH.
