@@ -124,16 +124,51 @@ async function sendMessage(accountId, conversationId, content) {
   }
 }
 
+/**
+ * Pasa la conversación a un humano.
+ *
+ * Son DOS pasos, no uno. Poner la conversación en 'open' solo la saca de la
+ * cola del bot; si nadie la tiene asignada, Chatwoot la deja en "Sin asignar",
+ * que no es la bandeja que mira un agente por defecto. Ese era el motivo de que
+ * los casos "desaparecieran" tras pedir agente.
+ */
 async function handoffToHuman(accountId, conversationId) {
+  const headers = { 'api_access_token': CHATWOOT_TOKEN };
+  const base = CHATWOOT_URL + '/api/v1/accounts/' + accountId + '/conversations/' + conversationId;
+
+  // 1. Sacarla de la cola del bot. Este paso es el crítico: sin él, el bot
+  //    seguiría respondiendo aunque el cliente ya haya pedido un humano.
   try {
-    await axios.patch(
-      CHATWOOT_URL + '/api/v1/accounts/' + accountId + '/conversations/' + conversationId,
-      { status: 'open' },
-      { headers: { 'api_access_token': CHATWOOT_TOKEN } }
-    );
-    console.log('✅ Transferido a agente humano');
+    await axios.patch(base, { status: 'open' }, { headers });
   } catch (err) {
-    console.error('❌ Error handoff:', err.response?.status, err.response?.data?.error || err.message);
+    console.error('❌ Error abriendo la conversación:', err.response?.status, err.response?.data?.error || err.message);
+    return;
+  }
+
+  // 2. Asignarla, si hay destinatario configurado.
+  const assigneeId = process.env.CHATWOOT_HANDOFF_ASSIGNEE_ID;
+  const teamId = process.env.CHATWOOT_HANDOFF_TEAM_ID;
+
+  if (!assigneeId && !teamId) {
+    console.log('✅ Conversación abierta (sin asignar: define CHATWOOT_HANDOFF_ASSIGNEE_ID o CHATWOOT_HANDOFF_TEAM_ID)');
+    return;
+  }
+
+  /*
+   * Un fallo aquí no revierte el paso 1 ni corta el flujo: la conversación ya
+   * está fuera del bot, que es lo que impide que siga respondiendo a alguien
+   * que pidió un humano. Quedarse sin asignar es recuperable a mano; que el
+   * bot siga contestando, no.
+   */
+  try {
+    await axios.post(
+      base + '/assignments',
+      teamId ? { team_id: Number(teamId) } : { assignee_id: Number(assigneeId) },
+      { headers }
+    );
+    console.log('✅ Transferido y asignado a ' + (teamId ? 'equipo ' + teamId : 'agente ' + assigneeId));
+  } catch (err) {
+    console.error('⚠️ Abierta pero SIN asignar:', err.response?.status, err.response?.data?.error || err.message);
   }
 }
 
