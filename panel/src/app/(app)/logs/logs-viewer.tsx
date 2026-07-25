@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Pause, Play, RotateCw } from "lucide-react";
+import { Loader2, Pause, Play, RotateCw, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLogStream, type StreamStatus } from "@/hooks/use-log-stream";
@@ -60,6 +69,8 @@ function StreamIndicator({ status }: { status: StreamStatus }) {
 export function LogsViewer() {
   const [stream, setStream] = useState<"all" | "err">("all");
   const [live, setLive] = useState(true);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const { lines, status, error, reconnect } = useLogStream({
     stream,
@@ -82,6 +93,30 @@ export function LogsViewer() {
   }, [lines]);
 
   const connecting = status === "connecting" && lines.length === 0;
+
+  async function onClear() {
+    setClearing(true);
+
+    try {
+      const response = await fetch("/api/logs/clear", { method: "POST" });
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error(body?.error ?? `Error ${response.status}`);
+        return;
+      }
+
+      toast.success("Logs vaciados.");
+      setConfirmClear(false);
+      // El stream sigue conectado pero muestra líneas que ya no existen en
+      // disco; se reconecta para que la pantalla refleje el archivo vacío.
+      reconnect();
+    } catch {
+      toast.error("No se pudo contactar con el servidor.");
+    } finally {
+      setClearing(false);
+    }
+  }
 
   return (
     <Card>
@@ -116,6 +151,16 @@ export function LogsViewer() {
               )}
             />
             Reconectar
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setConfirmClear(true)}
+            title="Vaciar los archivos de log"
+          >
+            <Trash2 className="size-4" />
+            Vaciar
           </Button>
         </div>
       </CardHeader>
@@ -176,6 +221,43 @@ export function LogsViewer() {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Vaciar los logs</DialogTitle>
+            <DialogDescription>
+              Ejecuta `pm2 flush` sobre el bot. PM2 trunca los archivos, no los
+              archiva: lo que se borre no se puede recuperar, y es justo el
+              historial que hace falta para diagnosticar un incidente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmClear(false)}
+              disabled={clearing}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onClear}
+              disabled={clearing}
+            >
+              {clearing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
+              Sí, vaciar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {status === "reconnecting" ? (
         <div className="flex items-center gap-2 border-t border-border px-5 py-2 text-xs text-muted-foreground">

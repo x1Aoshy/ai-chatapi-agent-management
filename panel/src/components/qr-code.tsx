@@ -36,8 +36,9 @@ export function QrCanvas({
       type: "svg",
       // Alta corrección de errores: tolera reflejos y suciedad en la pantalla.
       errorCorrectionLevel: "H",
-      margin: 2,
-      width: size,
+      // Zona de silencio mínima. El margen visual lo pone el marco de fuera;
+      // duplicarlo aquí solo encogería los módulos y costaría legibilidad.
+      margin: 1,
       color: {
         dark: "#0a0a0aff",
         light: "#ffffffff",
@@ -56,38 +57,46 @@ export function QrCanvas({
     return () => {
       active = false;
     };
-  }, [value, size]);
+  }, [value]);
+
+  /*
+   * El marco lleva el relleno y el borde; la caja interior lleva el tamaño.
+   *
+   * Antes iban juntos: el div medía `size` Y tenía padding, mientras el SVG
+   * medía también `size`, así que se desbordaba y el código aparecía corrido.
+   * Separándolos, el SVG escala al 100% de una caja cuyo tamaño sí es exacto.
+   */
+  const frame = "inline-block shrink-0 border border-border bg-white p-3";
 
   if (error) {
     return (
-      <div
-        className={cn(
-          "flex items-center justify-center border border-border bg-muted text-xs text-muted-foreground",
-          className
-        )}
-        style={{ width: size, height: size }}
-      >
-        No se pudo dibujar el código
+      <div className={cn(frame, "bg-muted", className)}>
+        <div
+          className="flex items-center justify-center text-center text-xs text-muted-foreground"
+          style={{ width: size, height: size }}
+        >
+          No se pudo dibujar el código
+        </div>
       </div>
     );
   }
 
-  if (!svg) {
-    return (
-      <div
-        className={cn("animate-pulse bg-muted", className)}
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-
   return (
-    <div
-      className={cn("border border-border bg-white p-3 [&>svg]:block", className)}
-      style={{ width: size, height: size }}
-      // El SVG lo genera la librería a partir del texto del código, no viene
-      // del servidor: no hay HTML de terceros que pueda inyectarse aquí.
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <div className={cn(frame, className)}>
+      {svg ? (
+        <div
+          className="[&>svg]:block [&>svg]:h-full [&>svg]:w-full"
+          style={{ width: size, height: size }}
+          // El SVG lo genera la librería a partir del texto del código, no
+          // viene del servidor: no hay HTML de terceros que pueda inyectarse.
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      ) : (
+        <div
+          className="animate-pulse bg-muted"
+          style={{ width: size, height: size }}
+        />
+      )}
+    </div>
   );
 }

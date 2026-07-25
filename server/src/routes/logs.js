@@ -2,7 +2,8 @@ import { Router } from 'express';
 
 import { tailFile } from '../lib/files.js';
 import { followFile } from '../lib/log-stream.js';
-import { getLogPaths } from '../lib/pm2.js';
+import { flushLogs, getLogPaths } from '../lib/pm2.js';
+import { rateLimit } from '../auth.js';
 
 export const logsRouter = Router();
 
@@ -82,6 +83,26 @@ logsRouter.get('/logs', async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * Vacía los logs del bot.
+ *
+ * Limitado con dureza: no se puede deshacer, y quien lo invoque por error
+ * destruye el historial que hace falta justo para diagnosticar un incidente.
+ */
+logsRouter.post(
+  '/logs/clear',
+  rateLimit({ windowMs: 60_000, max: 3 }),
+  async (_req, res, next) => {
+    try {
+      await flushLogs();
+      console.warn('[logs] vaciados desde el panel');
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 /**
  * Stream de logs en tiempo real (Server-Sent Events).
