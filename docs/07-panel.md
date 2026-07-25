@@ -28,6 +28,7 @@ Panel de administración web para operar el bot sin entrar por SSH.
 | `/login` | Autenticación con Supabase |
 | `/` | Dashboard: estado del bot, WhatsApp, estadísticas, gráfica de mensajes |
 | `/training` | Editor de `instrucciones.txt` con historial de versiones |
+| `/knowledge` | Base de conocimiento vectorial (ver `09-conocimiento.md`) |
 | `/connections` | Estado y control de DeepSeek, Chatwoot, WhatsApp, Redis |
 | `/logs` | Visor de conversaciones en tiempo real |
 | `/settings` | Variables de entorno, modelo IA, TTL de memoria en Redis |
@@ -72,7 +73,9 @@ Navegador → Vercel (API Routes) → Middleware :5001 → {archivos, PM2, Redis
 | `GET` | `/api/logs` | Últimas N líneas de PM2 |
 | `GET` | `/api/logs/stream` | Logs en tiempo real (SSE) |
 | `GET` | `/api/whatsapp/state` | Proxy a `connectionState` de Evolution |
-| `POST` | `/api/whatsapp/connect` | Generar QR |
+| `GET` | `/api/whatsapp/qr` | Generar QR |
+| `POST` | `/api/whatsapp/connect` | Igual que el anterior (compatibilidad) |
+| `POST` | `/api/whatsapp/logout` | Cerrar la sesión de WhatsApp |
 | `GET` | `/api/redis/conversations` | Listar `chat_history:*` |
 | `DELETE` | `/api/redis/conversations/:id` | Borrar la memoria de una conversación |
 

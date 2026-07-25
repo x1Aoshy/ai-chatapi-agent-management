@@ -1,22 +1,12 @@
 "use client";
 
-import Image from "next/image";
-import { useState } from "react";
-import { Loader2, QrCode, RefreshCw, Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { NotConfigured } from "@/components/not-configured";
 import { StatusDot, STATUS_LABELS } from "@/components/status-dot";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -28,11 +18,9 @@ import {
 } from "@/components/ui/table";
 import { useAgentData } from "@/hooks/use-agent-data";
 import { cn } from "@/lib/utils";
-import type {
-  ConversationsResponse,
-  HealthResponse,
-  WhatsAppQr,
-} from "@/lib/types";
+import type { ConversationsResponse, HealthResponse } from "@/lib/types";
+
+import { WhatsAppCard } from "./whatsapp-card";
 
 function formatTtl(seconds: number) {
   if (seconds < 0) return "sin TTL";
@@ -47,31 +35,6 @@ export function ConnectionsContent() {
     "/api/redis/conversations",
     { pollMs: 30_000 }
   );
-
-  const [qr, setQr] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
-
-  async function onConnect() {
-    setConnecting(true);
-
-    try {
-      const response = await fetch("/api/whatsapp/connect", { method: "POST" });
-      const body = (await response.json().catch(() => null)) as
-        | (WhatsAppQr & { error?: string })
-        | null;
-
-      if (!response.ok || !body?.base64) {
-        toast.error(body?.error ?? "No se pudo generar el QR.");
-        return;
-      }
-
-      setQr(body.base64);
-    } catch {
-      toast.error("No se pudo contactar con el servidor.");
-    } finally {
-      setConnecting(false);
-    }
-  }
 
   async function onClearMemory(conversationId: string) {
     try {
@@ -154,42 +117,7 @@ export function ConnectionsContent() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between border-b border-border">
-          <div className="space-y-1">
-            <CardTitle>WhatsApp</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Vincular genera un QR que equivale a una sesión: escanéalo solo tú.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onConnect}
-            disabled={connecting}
-          >
-            {connecting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <QrCode className="size-4" />
-            )}
-            Vincular
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">Estado actual</span>
-            {whatsapp ? (
-              <Badge variant={whatsapp.status === "online" ? "online" : "offline"}>
-                <StatusDot status={whatsapp.status} />
-                {whatsapp.detail ?? STATUS_LABELS[whatsapp.status]}
-              </Badge>
-            ) : (
-              <Badge variant="offline">Sin datos</Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <WhatsAppCard service={whatsapp} onStateChange={health.refresh} />
 
       <Card>
         <CardHeader className="flex-row items-center justify-between border-b border-border">
@@ -251,28 +179,6 @@ export function ConnectionsContent() {
         </CardContent>
       </Card>
 
-      <Dialog open={qr !== null} onOpenChange={(open) => !open && setQr(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Vincular WhatsApp</DialogTitle>
-            <DialogDescription>
-              WhatsApp → Dispositivos vinculados → Vincular un dispositivo.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center p-6">
-            {qr ? (
-              <Image
-                src={qr}
-                alt="Código QR para vincular WhatsApp"
-                width={256}
-                height={256}
-                className="size-64 bg-white p-2"
-                unoptimized
-              />
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
