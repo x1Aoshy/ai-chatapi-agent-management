@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, LogOut, RefreshCw, Smartphone } from "lucide-react";
+import { Loader2, LogOut, QrCode, RefreshCw, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
 import { StatusDot, STATUS_LABELS } from "@/components/status-dot";
@@ -21,49 +21,38 @@ import { cn } from "@/lib/utils";
 import type { ServiceHealth, WhatsAppQr } from "@/lib/types";
 
 /*
- * Los QR de WhatsApp caducan en torno al minuto. Se regenera algo antes para
- * que el que hay en pantalla siempre sea escaneable, y solo mientras la
- * pestaña está visible: pedirlos de fondo gastaría el límite de Evolution
- * (5/min) sin que nadie los mire.
+ * Los QR de WhatsApp caducan en torno al minuto, así que mientras el diálogo
+ * está abierto se renueva algo antes.
+ *
+ * Solo mientras está abierto: antes se pedía uno cada 50 s con la tarjeta a la
+ * vista, gastando el límite de Evolution (5/min) para dibujar códigos que
+ * nadie estaba mirando.
  */
 const QR_REFRESH_MS = 50_000;
 
-export function WhatsAppCard({
-  service,
-  onStateChange,
+function QrDialog({
+  open,
+  onOpenChange,
+  onLinked,
 }: {
-  service?: ServiceHealth;
-  onStateChange: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onLinked: () => void;
 }) {
-  const connected = service?.status === "online";
-
-  const [qr, setQr] = useState<WhatsAppQr | null>(null);
-  const [loadingQr, setLoadingQr] = useState(false);
-  const [qrError, setQrError] = useState<string | null>(null);
-  const [confirmLogout, setConfirmLogout] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [qr, setQr] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [token, setToken] = useState(0);
 
   const inFlight = useRef(false);
 
-  // Al conectar, el QR deja de tener sentido: se deriva en render en lugar de
-  // limpiarlo desde un efecto.
-  const shownQr = connected ? null : qr;
-
-  const [qrToken, setQrToken] = useState(0);
-
-  /**
-   * Petición manual. Solo aquí se marca `loadingQr`: el refresco automático
-   * cada 50 s no debe girar el botón, o el indicador dejaría de significar
-   * "estoy pidiendo lo que me acabas de pedir".
-   */
   const requestQr = useCallback(() => {
-    setLoadingQr(true);
-    setQrToken((token) => token + 1);
+    setLoading(true);
+    setToken((value) => value + 1);
   }, []);
 
-  // Mientras esté desconectado, mantener un QR fresco en pantalla.
   useEffect(() => {
-    if (connected) return;
+    if (!open) return;
 
     let active = true;
 
@@ -80,38 +69,106 @@ export function WhatsAppCard({
         if (!active) return;
 
         if (!response.ok || !body?.base64) {
-          // 409 significa que Evolution ya tiene sesión: no es un error que
-          // mostrar en rojo, sino una señal de que hay que releer el estado.
+          // 409 significa que Evolution ya tiene sesión: no es un fallo, es
+          // que acaba de vincularse. Se cierra y se relee el estado.
           if (response.status === 409) {
-            setQrError(null);
-            onStateChange();
+            onLinked();
+            onOpenChange(false);
             return;
           }
-          setQrError(body?.error ?? `Error ${response.status}`);
+          setError(body?.error ?? `Error ${response.status}`);
           return;
         }
 
-        setQr(body);
-        setQrError(null);
+        setQr(body.base64);
+        setError(null);
       } catch {
-        if (active) setQrError("No se pudo contactar con el servidor.");
+        if (active) setError("No se pudo contactar con el servidor.");
       } finally {
         inFlight.current = false;
-        if (active) setLoadingQr(false);
+        if (active) setLoading(false);
       }
     }
 
     void loadQr();
-
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") void loadQr();
-    }, QR_REFRESH_MS);
+    const interval = setInterval(() => void loadQr(), QR_REFRESH_MS);
 
     return () => {
       active = false;
       clearInterval(interval);
     };
-  }, [connected, qrToken, onStateChange]);
+  }, [open, token, onLinked, onOpenChange]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Vincular WhatsApp</DialogTitle>
+          <DialogDescription>
+            WhatsApp → Dispositivos vinculados → Vincular un dispositivo
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center gap-4 px-5 py-6">
+          {error ? (
+            <div className="space-y-3 text-center">
+              <p className="text-sm text-destructive">{error}</p>
+              <Button variant="outline" size="sm" onClick={requestQr}>
+                <RefreshCw className="size-4" />
+                Reintentar
+              </Button>
+            </div>
+          ) : qr ? (
+            /*
+             * PNG oficial de Evolution. Se intentó redibujarlo con la paleta
+             * del panel y WhatsApp rechazaba el resultado: ese formato lo
+             * define WhatsApp, no es un dato re-serializable.
+             */
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={qr}
+              alt="Código QR para vincular WhatsApp"
+              width={240}
+              height={240}
+              className="block size-60 border border-border bg-white p-3"
+            />
+          ) : (
+            <Skeleton className="size-60 border border-border" />
+          )}
+
+          <p className="text-center text-[10px] text-muted-foreground/60">
+            El código caduca en menos de un minuto y se renueva solo.
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={requestQr}
+            disabled={loading}
+          >
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            Regenerar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function WhatsAppCard({
+  service,
+  onStateChange,
+}: {
+  service?: ServiceHealth;
+  onStateChange: () => void;
+}) {
+  const connected = service?.status === "online";
+
+  const [showQr, setShowQr] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   async function onLogout() {
     setLoggingOut(true);
@@ -138,17 +195,16 @@ export function WhatsAppCard({
   return (
     <>
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-4 border-b border-border">
-          <div className="space-y-1">
-            <CardTitle>WhatsApp</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              {connected
-                ? "El bot está recibiendo mensajes."
-                : "Escanea el código para vincular el número."}
-            </p>
-          </div>
+        <CardHeader className="border-b border-border">
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="size-4" />
+            WhatsApp
+          </CardTitle>
+        </CardHeader>
 
-          <div className="flex items-center gap-2">
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">Sesión</span>
             {service ? (
               <Badge variant={connected ? "online" : "offline"}>
                 <StatusDot status={service.status} />
@@ -157,84 +213,34 @@ export function WhatsAppCard({
             ) : (
               <Badge variant="offline">Sin datos</Badge>
             )}
-
-            {connected ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setConfirmLogout(true)}
-              >
-                <LogOut className="size-4" />
-                Desvincular
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={requestQr}
-                disabled={loadingQr}
-              >
-                <RefreshCw className={cn("size-4", loadingQr && "animate-spin")} />
-                Regenerar
-              </Button>
-            )}
           </div>
-        </CardHeader>
 
-        <CardContent>
+          <p className="text-xs text-muted-foreground">
+            {connected
+              ? "El bot está recibiendo y enviando mensajes."
+              : "Sin sesión activa: el bot no recibe mensajes hasta que vincules un número."}
+          </p>
+
           {connected ? (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <Smartphone className="size-4" />
-              Sesión activa. Desvincular deja al bot sin canal hasta que se
-              escanee un código nuevo.
-            </div>
-          ) : qrError ? (
-            <div className="space-y-3 py-4 text-center">
-              <p className="text-sm text-destructive">{qrError}</p>
-              <Button variant="outline" size="sm" onClick={requestQr}>
-                <RefreshCw className="size-4" />
-                Reintentar
-              </Button>
-            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="w-full"
+              onClick={() => setConfirmLogout(true)}
+            >
+              <LogOut className="size-4" />
+              Desvincular
+            </Button>
           ) : (
-            <div className="flex flex-col items-center gap-4 py-4">
-              {/*
-                * Se usa el PNG que devuelve Evolution y no un QR redibujado a
-                * partir de `code`.
-                *
-                * Redibujarlo encajaba mejor con la paleta del panel, pero
-                * WhatsApp rechazaba el código resultante: lo escaneaba y
-                * respondía que no se podía vincular. El QR de vinculación es
-                * un formato del que WhatsApp es la autoridad, no un dato
-                * cualquiera que se pueda re-serializar; el que funciona es el
-                * oficial. El marco de 1px y el encuadre son lo que se conserva
-                * del intento.
-                */}
-              {shownQr?.base64 ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={shownQr.base64}
-                  alt="Código QR para vincular WhatsApp"
-                  width={240}
-                  height={240}
-                  className="block size-60 border border-border bg-white p-3"
-                />
-              ) : (
-                <Skeleton className="size-60 border border-border" />
-              )}
-
-              <div className="space-y-1 text-center">
-                <p className="text-xs text-muted-foreground">
-                  WhatsApp → Dispositivos vinculados → Vincular un dispositivo
-                </p>
-                <p className="text-[10px] text-muted-foreground/60">
-                  El código caduca en menos de un minuto y se renueva solo.
-                </p>
-              </div>
-            </div>
+            <Button size="sm" className="w-full" onClick={() => setShowQr(true)}>
+              <QrCode className="size-4" />
+              Mostrar código QR
+            </Button>
           )}
         </CardContent>
       </Card>
+
+      <QrDialog open={showQr} onOpenChange={setShowQr} onLinked={onStateChange} />
 
       <Dialog open={confirmLogout} onOpenChange={setConfirmLogout}>
         <DialogContent className="max-w-md">
