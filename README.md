@@ -75,10 +75,33 @@ cp .env.example .env.local   # rellenar con los valores reales
 npm run dev
 ```
 
-> **El panel necesita un middleware en el servidor AWS que todavía no existe.**
-> Sin él arranca y autentica, pero cada página muestra "Sin conexión con el
-> servidor". Su especificación —endpoints, autenticación y consideraciones de
-> implementación— está en [docs/07-panel.md](docs/07-panel.md).
+> El panel habla con el servidor a través del middleware de [`server/`](server/).
+> Hasta que ese servicio esté desplegado, cada página muestra "Sin conexión con
+> el servidor".
+
+---
+
+## Middleware del servidor
+
+Servicio en [`server/`](server/) que conecta el panel con la infraestructura.
+Vercel nunca habla directamente con Chatwoot, Evolution, Redis ni PM2: todo
+pasa por aquí.
+
+```
+Navegador → Vercel → middleware :5001 → {archivos, PM2, Redis, APIs}
+```
+
+```bash
+cd server
+npm install --omit=dev
+cp .env.example .env         # rellenar, incluida PANEL_API_KEY
+pm2 start ecosystem.config.cjs && pm2 save
+```
+
+Autenticado con una clave compartida con Vercel; **el servicio no arranca sin
+ella**. Ponle TLS delante antes de exponerlo: esa clave viaja en cada petición.
+Instrucciones completas y decisiones de seguridad en
+[server/README.md](server/README.md).
 
 ---
 
