@@ -5,7 +5,16 @@ import { useCallback, useEffect, useState } from "react";
 interface AgentDataState<T> {
   data: T | null;
   error: string | null;
+  /** Solo la primera carga, cuando aún no hay nada que enseñar. */
   loading: boolean;
+  /**
+   * Hay una petición en vuelo teniendo ya datos en pantalla.
+   *
+   * Se separa de `loading` para que un refresco anime el botón en lugar de
+   * sustituir la vista por un esqueleto: parpadear el contenido entero en cada
+   * actualización es peor que no indicar nada.
+   */
+  refreshing: boolean;
   /** Código HTTP del último fallo; 503 significa "panel sin configurar". */
   status: number | null;
 }
@@ -25,6 +34,7 @@ export function useAgentData<T>(
     data: null,
     error: null,
     loading: enabled,
+    refreshing: false,
     status: null,
   });
 
@@ -57,6 +67,12 @@ export function useAgentData<T>(
       if (inFlight) return;
       inFlight = true;
 
+      // Marca el refresco solo si ya hay algo en pantalla; en la primera carga
+      // manda `loading` y el esqueleto.
+      setState((current) =>
+        current.loading ? current : { ...current, refreshing: true }
+      );
+
       try {
         const response = await fetch(path, {
           cache: "no-store",
@@ -71,6 +87,7 @@ export function useAgentData<T>(
             data: null,
             error: body?.error ?? `Error ${response.status}`,
             loading: false,
+            refreshing: false,
             status: response.status,
           });
 
@@ -84,7 +101,13 @@ export function useAgentData<T>(
           return;
         }
 
-        setState({ data: body as T, error: null, loading: false, status: 200 });
+        setState({
+          data: body as T,
+          error: null,
+          loading: false,
+          refreshing: false,
+          status: 200,
+        });
       } catch (error) {
         // El abort al desmontar entra por aquí y no es un fallo que mostrar.
         if (!active || (error instanceof Error && error.name === "AbortError")) {
@@ -95,6 +118,7 @@ export function useAgentData<T>(
           data: null,
           error: error instanceof Error ? error.message : "Fallo de red.",
           loading: false,
+          refreshing: false,
           status: null,
         });
       } finally {

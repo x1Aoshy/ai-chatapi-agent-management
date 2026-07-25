@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAgentData } from "@/hooks/use-agent-data";
+import { cn } from "@/lib/utils";
 import type {
   ConversationsResponse,
   HealthResponse,
@@ -105,8 +106,8 @@ export function ConnectionsContent() {
       <Card>
         <CardHeader className="flex-row items-center justify-between border-b border-border">
           <CardTitle>Servicios</CardTitle>
-          <Button variant="ghost" size="sm" onClick={health.refresh}>
-            <RefreshCw className="size-4" />
+          <Button variant="ghost" size="sm" onClick={health.refresh} disabled={health.refreshing}>
+            <RefreshCw className={cn("size-4", health.refreshing && "animate-spin")} />
             Actualizar
           </Button>
         </CardHeader>
@@ -198,8 +199,8 @@ export function ConnectionsContent() {
               Historial por conversación: 6 mensajes, TTL de 24 h.
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={conversations.refresh}>
-            <RefreshCw className="size-4" />
+          <Button variant="ghost" size="sm" onClick={conversations.refresh} disabled={conversations.refreshing}>
+            <RefreshCw className={cn("size-4", conversations.refreshing && "animate-spin")} />
             Actualizar
           </Button>
         </CardHeader>

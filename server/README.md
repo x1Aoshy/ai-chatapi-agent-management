@@ -94,6 +94,7 @@ Todos bajo `/api`, todos exigen `Authorization: Bearer <PANEL_API_KEY>`.
 | `PUT` | `/env` | Actualizar variables de la lista blanca |
 | `POST` | `/restart` | `pm2 restart ai-bot --update-env` |
 | `GET` | `/logs` | Últimas N líneas de PM2 |
+| `GET` | `/logs/stream` | Logs en tiempo real (Server-Sent Events) |
 | `GET` | `/whatsapp/state` | Estado de la conexión de WhatsApp |
 | `POST` | `/whatsapp/connect` | Generar QR de vinculación |
 | `GET` | `/redis/conversations` | Memoria por conversación |
@@ -147,6 +148,13 @@ falta hace el dashboard.
 **Límite de peticiones.** 120/min en general, 3/min en `/restart` y 5/min en
 `/whatsapp/connect`. El reinicio corta el servicio unos segundos y el QR
 equivale a una sesión de WhatsApp.
+
+**Logs en tiempo real.** `/logs/stream` sigue el crecimiento de los archivos de
+PM2 sondeando su tamaño cada segundo, en vez de `fs.watch`: watch se comporta
+distinto según el sistema de archivos y puede perder eventos o duplicarlos.
+Detecta la rotación (`pm2 flush`) porque el archivo encoge, y en ese caso vuelve
+a leer desde cero. Un latido cada 15 s mantiene viva la conexión frente a
+proxies que cortan por inactividad.
 
 ---
 

@@ -21,16 +21,63 @@ async function pm2(args, timeoutMs = 15_000) {
   return stdout;
 }
 
-/** Devuelve la entrada de `pm2 jlist` correspondiente al bot, o null. */
-export async function getBotProcess() {
+/**
+ * Inspecciona PM2 devolviendo también POR QUÉ ha fallado.
+ *
+ * La versión anterior se tragaba el motivo y devolvía null, así que un PM2 no
+ * instalado, un demonio de otro usuario y un nombre de proceso equivocado
+ * producían el mismo 404 sin pistas. Son tres problemas con tres soluciones
+ * distintas, y el operador necesita saber cuál tiene.
+ */
+export async function inspectPm2() {
+  let stdout;
+
   try {
-    const stdout = await pm2(['jlist']);
-    const processes = JSON.parse(stdout);
-    return processes.find((p) => p.name === config.bot.processName) ?? null;
+    stdout = await pm2(['jlist']);
   } catch (error) {
-    console.error('[pm2] jlist falló:', error.message);
-    return null;
+    const reason =
+      error.code === 'ENOENT'
+        ? 'PM2 no está en el PATH del middleware.'
+        : `No se pudo ejecutar 'pm2 jlist': ${error.message}`;
+    return { process: null, names: [], error: reason };
   }
+
+  let processes;
+  try {
+    processes = JSON.parse(stdout);
+  } catch {
+    return { process: null, names: [], error: "'pm2 jlist' no devolvió JSON válido." };
+  }
+
+  const names = processes.map((p) => p.name);
+  const found = processes.find((p) => p.name === config.bot.processName) ?? null;
+
+  if (!found) {
+    /*
+     * PM2 corre un demonio por usuario. Si el middleware arranca con un
+     * usuario distinto al del bot, ve una lista vacía o ajena aunque el bot
+     * esté perfectamente vivo. Es la causa más habitual y la menos evidente,
+     * así que se nombra explícitamente.
+     */
+    const detail = names.length
+      ? `PM2 ve estos procesos: ${names.join(', ')}.`
+      : 'PM2 no ve ningún proceso. Probablemente el middleware corre con un usuario distinto al del bot.';
+
+    return {
+      process: null,
+      names,
+      error: `No existe el proceso '${config.bot.processName}'. ${detail}`,
+    };
+  }
+
+  return { process: found, names, error: null };
+}
+
+/** Devuelve la entrada del bot en PM2, o null. */
+export async function getBotProcess() {
+  const { process: found, error } = await inspectPm2();
+  if (error) console.error('[pm2]', error);
+  return found;
 }
 
 /** Estado del bot en la forma que espera el panel (tipo BotProcess). */
@@ -66,13 +113,24 @@ export async function restartBot() {
   await pm2(['restart', config.bot.processName, '--update-env'], 30_000);
 }
 
-/** Rutas de los archivos de log que PM2 mantiene para el bot. */
+/**
+ * Rutas de los archivos de log del bot, con el motivo si no se pueden obtener.
+ */
 export async function getLogPaths() {
-  const proc = await getBotProcess();
-  if (!proc) return { out: null, err: null };
+  const { process: found, error } = await inspectPm2();
 
-  return {
-    out: proc.pm2_env?.pm_out_log_path ?? null,
-    err: proc.pm2_env?.pm_err_log_path ?? null,
-  };
+  if (error) return { out: null, err: null, error };
+
+  const out = found.pm2_env?.pm_out_log_path ?? null;
+  const err = found.pm2_env?.pm_err_log_path ?? null;
+
+  if (!out && !err) {
+    return {
+      out: null,
+      err: null,
+      error: `PM2 conoce '${config.bot.processName}' pero no reporta rutas de log para él.`,
+    };
+  }
+
+  return { out, err, error: null };
 }

@@ -99,6 +99,46 @@ export async function agentFetch<T>(
 }
 
 /**
+ * Abre un stream contra el middleware y devuelve la respuesta sin parsear.
+ *
+ * Se usa para Server-Sent Events: agentFetch consume el cuerpo entero con
+ * .json(), lo que con un stream infinito no terminaría nunca. Aquí el cuerpo
+ * se reenvía tal cual al navegador.
+ *
+ * Sin timeout a propósito: la conexión debe durar lo máximo que permita la
+ * plataforma, no diez segundos.
+ */
+export async function agentStream(
+  path: string,
+  signal?: AbortSignal
+): Promise<Response> {
+  const { baseUrl, apiKey } = getConfig();
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    signal,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "text/event-stream",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new AgentApiError(
+      body?.slice(0, 300) || `El servidor respondió ${response.status}`,
+      response.status
+    );
+  }
+
+  if (!response.body) {
+    throw new AgentApiError("El servidor no devolvió un stream.", 502);
+  }
+
+  return response;
+}
+
+/**
  * Envuelve un route handler para que cualquier AgentApiError salga como una
  * respuesta JSON con su código real en lugar de un 500 genérico. Así la UI
  * puede distinguir "no configurado" (503) de "servidor caído" (502).

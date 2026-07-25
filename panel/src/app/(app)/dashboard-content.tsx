@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAgentData } from "@/hooks/use-agent-data";
+import { cn } from "@/lib/utils";
 import type { HealthResponse } from "@/lib/types";
 
 const POLL_MS = 15_000;
@@ -40,7 +41,7 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function DashboardContent() {
-  const { data, error, loading, status, refresh } = useAgentData<HealthResponse>(
+  const { data, error, loading, refreshing, status, refresh } = useAgentData<HealthResponse>(
     "/api/health",
     { pollMs: POLL_MS }
   );
@@ -62,8 +63,8 @@ export function DashboardContent() {
     return (
       <div className="space-y-4">
         <NotConfigured error={status === 503 ? null : error} />
-        <Button variant="outline" size="sm" onClick={refresh}>
-          <RefreshCw className="size-4" />
+        <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+          <RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
           Reintentar
         </Button>
       </div>
@@ -98,8 +99,8 @@ export function DashboardContent() {
           <div>
             <CardTitle>Servicios</CardTitle>
           </div>
-          <Button variant="ghost" size="sm" onClick={refresh}>
-            <RefreshCw className="size-4" />
+          <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={cn("size-4", refreshing && "animate-spin")} />
             Actualizar
           </Button>
         </CardHeader>
