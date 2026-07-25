@@ -1,9 +1,14 @@
-# 07 — Titan Panel (plan)
+# 07 — Panel "AI Management"
 
 Panel de administración web para operar el bot sin entrar por SSH.
 
-> **Estado: planificado.** Ni el frontend ni el middleware están implementados.
-> Este documento es la especificación de referencia.
+> **Estado.** El frontend está implementado en [`panel/`](../panel): Next.js 15
+> con App Router, autenticación con Supabase y las cinco páginas del plan.
+>
+> **El middleware del servidor AWS todavía NO existe.** Sin él, el panel
+> arranca y autentica, pero cada página muestra el aviso "Sin conexión con el
+> servidor": no hay nada al otro lado que responda a sus llamadas. La sección
+> "Middleware en el servidor AWS" de este documento es su especificación.
 
 ---
 
@@ -11,7 +16,7 @@ Panel de administración web para operar el bot sin entrar por SSH.
 
 - **Next.js 15** (App Router) + Tailwind CSS + **shadcn/ui**
 - **Supabase** — Auth + PostgreSQL
-- **Vercel** — despliegue en `titan-panel.vercel.app`
+- **Vercel** — despliegue en `aimanagement-panel.vercel.app`
 - Comunicación con el servidor AWS vía API Routes seguras
 
 ---

@@ -1,7 +1,7 @@
-# Titan Supplements — Bot IA "Marcos" + Titan Panel
+# AI Management — Bot IA "Marcos" + Panel
 
-Documentación e infraestructura del asistente virtual de WhatsApp de Titan Supplements
-y del panel de administración que lo gobierna.
+Documentación e infraestructura del asistente virtual de WhatsApp y del panel de
+administración que lo gobierna.
 
 El sistema conecta WhatsApp → Evolution API → Chatwoot → un bot Node.js con DeepSeek,
 con memoria conversacional en Redis y escalado a agente humano.
@@ -31,7 +31,7 @@ con memoria conversacional en Redis y escalado a agente humano.
 | [04 — Flujo de mensaje](docs/04-flujo-mensaje.md) | Recorrido punta a punta de un mensaje |
 | [05 — Operaciones](docs/05-operaciones.md) | Runbook: despliegue, reinicios, verificación de salud |
 | [06 — Troubleshooting](docs/06-troubleshooting.md) | Problemas conocidos y sus soluciones |
-| [07 — Titan Panel](docs/07-titan-panel.md) | Plan del panel Next.js y del middleware en el servidor |
+| [07 — Panel](docs/07-panel.md) | Panel "AI Management" y especificación del middleware del servidor |
 | [08 — Seguridad](docs/08-seguridad.md) | Inventario de credenciales, rotación, superficie expuesta |
 
 ---
@@ -50,6 +50,35 @@ bot/
 ```
 
 Ver [docs/05-operaciones.md](docs/05-operaciones.md) para el procedimiento de despliegue.
+
+---
+
+## Panel "AI Management"
+
+Panel de administración en [`panel/`](panel/): Next.js 15 (App Router), Supabase
+para autenticación y shadcn/ui sobre un tema monocromático dark.
+
+```
+panel/
+├── src/app/(app)/       # Shell autenticado: dashboard, training, connections, logs, settings
+├── src/app/login/       # Autenticación
+├── src/app/api/         # Route handlers que hablan con el middleware del servidor
+├── src/components/ui/   # Componentes shadcn/ui
+├── src/lib/             # Clientes de Supabase, cliente del servidor, tipos
+└── .env.example         # Plantilla de variables (sin secretos)
+```
+
+```bash
+cd panel
+npm install
+cp .env.example .env.local   # rellenar con los valores reales
+npm run dev
+```
+
+> **El panel necesita un middleware en el servidor AWS que todavía no existe.**
+> Sin él arranca y autentica, pero cada página muestra "Sin conexión con el
+> servidor". Su especificación —endpoints, autenticación y consideraciones de
+> implementación— está en [docs/07-panel.md](docs/07-panel.md).
 
 ---
 

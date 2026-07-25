@@ -13,7 +13,7 @@
 > **Nota de capacidad:** con ~1 GB de RAM y 95 % de uso, el servidor está al límite.
 > Chatwoot (Rails + Sidekiq), PostgreSQL, Redis, Evolution API y el bot Node conviven
 > en la misma instancia. Cualquier servicio nuevo — incluido el middleware del panel
-> descrito en `07-titan-panel.md` — debe considerarse contra este presupuesto.
+> descrito en `07-panel.md` — debe considerarse contra este presupuesto.
 > Ver "Presión de memoria" en `06-troubleshooting.md`.
 
 ---
@@ -60,7 +60,7 @@
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                    VERCEL (Panel Web)                            │
-│                    titan-panel.vercel.app                        │
+│                    aimanagement-panel.vercel.app                 │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │   Next.js 15 (App Router)                                 │   │
@@ -92,8 +92,8 @@
 
 ### Vercel
 
-- **Titan Panel** — Frontend de administración. Aún en fase de plan; ver
-  `07-titan-panel.md`.
+- **Panel "AI Management"** — Frontend de administración, implementado en `panel/`. Ver
+  `07-panel.md`.
 
 ---
 

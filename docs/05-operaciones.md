@@ -56,7 +56,7 @@ nano instrucciones.txt
 > editar en sitio elimina el riesgo de lectura parcial.
 
 Haz siempre una copia antes de editar: no hay historial de versiones hasta que el
-Titan Panel lo implemente (ver `07-titan-panel.md`).
+el panel lo implemente (ver `07-panel.md`).
 
 ---
 
