@@ -71,11 +71,13 @@ async function handleQr(_req, res, next) {
     console.log('[whatsapp] QR generado');
 
     /*
-     * Se devuelve también `code`, el contenido en crudo del QR.
-     * Evolution renderiza su propio PNG con la paleta de WhatsApp, que no pega
-     * con nada en un panel monocromo. Con el texto original, el panel dibuja el
-     * código con los colores del sistema; `base64` queda como respaldo por si
-     * una versión de Evolution no expone `code`.
+     * `base64` es el QR que usa el panel. Se devuelve también `code` por si
+     * sirve para diagnosticar, pero NO para redibujar el código.
+     *
+     * Se intentó: quedaba mejor con la paleta del panel, pero WhatsApp
+     * rechazaba el resultado — lo escaneaba y respondía que no se podía
+     * vincular. El QR de vinculación es un formato del que WhatsApp es la
+     * autoridad, no un dato que se pueda re-serializar sin más.
      */
     res.json({ base64: body.base64 ?? null, code: body.code ?? null });
   } catch (error) {
