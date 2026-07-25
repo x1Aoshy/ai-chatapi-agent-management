@@ -116,6 +116,48 @@ antes de reintentar. **Cierra el puerto 3333 en el Security Group al terminar.**
 
 ---
 
+## El bot ignora sus reglas: habla de otros temas o dice que es DeepSeek
+
+**Síntoma.** Marcos responde sobre fútbol, política o cualquier cosa; acepta que
+un cliente le cambie el nombre; revela que es DeepSeek; usa markdown y respuestas
+largas. Nada de `instrucciones.txt` se aplica.
+
+**Causa.** No está leyendo el archivo, y cae a un prompt de reserva de una sola
+frase: `'Eres Marcos, asistente virtual.'`. Sin reglas, sin catálogo y sin
+restricciones, el modelo se comporta como un asistente genérico.
+
+Ocurría porque la ruta era relativa (`readFileSync('instrucciones.txt')`), que
+Node resuelve contra el **directorio de trabajo del proceso**, no contra el del
+script. Si PM2 arrancó el bot desde otro sitio, no lo encuentra. Y el error se
+tragaba en un `catch` vacío, así que no aparecía en ningún log.
+
+**Comprobar.** En `pm2 logs ai-bot`, al arrancar debe salir:
+
+```
+📄 instrucciones.txt cargado (2042 bytes)
+```
+
+Si en su lugar sale `🚨 NO se pudo leer ...`, es esto. El mensaje incluye la
+ruta donde lo buscaba.
+
+También se puede ver el directorio desde el que corre el proceso:
+
+```bash
+pm2 describe ai-bot | grep -i "exec cwd\|script path"
+```
+
+**Solución.** Ya está corregido: la ruta se deriva de la ubicación del propio
+`index.js`, así que funciona sea cual sea el directorio de arranque. Si aparece
+el aviso, comprueba que `instrucciones.txt` está junto a `index.js`.
+
+> **Por qué importa más de lo que parece.** Con el prompt de reserva, el bot
+> atiende a clientes reales sin ninguna restricción: puede inventar precios,
+> hablar de lo que sea y contar qué modelo hay detrás. Además la regla que
+> devuelve `[HUMAN_HANDOFF]` tampoco está, así que solo funciona el atajo de
+> escribir exactamente "agente".
+
+---
+
 ## El cliente pide agente y la conversación no llega a la bandeja
 
 **Síntoma.** El bot responde "Te comunico con uno de nuestros asesores", la
