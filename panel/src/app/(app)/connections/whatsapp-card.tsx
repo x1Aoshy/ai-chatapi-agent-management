@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, LogOut, QrCode, RefreshCw, Smartphone } from "lucide-react";
+import {
+  Loader2,
+  LogOut,
+  QrCode,
+  RefreshCw,
+  RotateCw,
+  Smartphone,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { StatusDot, STATUS_LABELS } from "@/components/status-dot";
@@ -21,14 +28,23 @@ import { cn } from "@/lib/utils";
 import type { ServiceHealth, WhatsAppQr } from "@/lib/types";
 
 /*
- * Los QR de WhatsApp caducan en torno al minuto, así que mientras el diálogo
- * está abierto se renueva algo antes.
+ * Un QR de WhatsApp caduca en torno a 20-30 s, no al minuto.
  *
- * Solo mientras está abierto: antes se pedía uno cada 50 s con la tarjeta a la
- * vista, gastando el límite de Evolution (5/min) para dibujar códigos que
- * nadie estaba mirando.
+ * Estaba en 50 s, así que la mayor parte del tiempo se mostraba un código ya
+ * muerto y el teléfono respondía que no se podía vincular. 18 s deja siempre
+ * uno fresco en pantalla y son 3 peticiones/min, dentro del límite de
+ * Evolution (5/min).
+ *
+ * Solo se pide con el diálogo abierto: con la tarjeta a la vista se gastaba el
+ * cupo dibujando códigos que nadie miraba.
  */
-const QR_REFRESH_MS = 50_000;
+const QR_REFRESH_MS = 18_000;
+
+/*
+ * Evolution deja de emitir códigos válidos pasado su QRCODE_LIMIT. A partir de
+ * ahí el QR se ve pero no vincula, y la única salida es reiniciar la instancia.
+ */
+const QR_COUNT_WARNING = 4;
 
 function QrDialog({
   open,
@@ -40,8 +56,10 @@ function QrDialog({
   onLinked: () => void;
 }) {
   const [qr, setQr] = useState<string | null>(null);
+  const [count, setCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [token, setToken] = useState(0);
 
   const inFlight = useRef(false);
@@ -81,6 +99,7 @@ function QrDialog({
         }
 
         setQr(body.base64);
+        setCount(body.count ?? null);
         setError(null);
       } catch {
         if (active) setError("No se pudo contactar con el servidor.");
@@ -98,6 +117,32 @@ function QrDialog({
       clearInterval(interval);
     };
   }, [open, token, onLinked, onOpenChange]);
+
+  async function onRestartInstance() {
+    setRestarting(true);
+
+    try {
+      const response = await fetch("/api/whatsapp/restart", { method: "POST" });
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        toast.error(body?.error ?? `Error ${response.status}`);
+        return;
+      }
+
+      toast.success("Instancia reiniciada. Generando un código nuevo…");
+      setQr(null);
+      setCount(null);
+      setError(null);
+      // Evolution tarda un momento en levantar el socket; pedir el QR de
+      // inmediato devolvería el estado anterior.
+      setTimeout(() => setToken((value) => value + 1), 2500);
+    } catch {
+      toast.error("No se pudo contactar con el servidor.");
+    } finally {
+      setRestarting(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -136,12 +181,35 @@ function QrDialog({
             <Skeleton className="size-60 border border-border" />
           )}
 
-          <p className="text-center text-[10px] text-muted-foreground/60">
-            El código caduca en menos de un minuto y se renueva solo.
-          </p>
+          <div className="space-y-1 text-center">
+            <p className="text-[10px] text-muted-foreground/60">
+              El código caduca en segundos y se renueva solo cada{" "}
+              {QR_REFRESH_MS / 1000}s. Escanéalo en cuanto aparezca.
+            </p>
+            {count !== null && count >= QR_COUNT_WARNING ? (
+              <p className="text-[10px] text-warning">
+                Evolution lleva {count} códigos emitidos. Si ninguno vincula,
+                reinicia la instancia.
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <DialogFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRestartInstance}
+            disabled={restarting}
+            title="Arranca una sesión de emparejamiento limpia en Evolution"
+          >
+            {restarting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RotateCw className="size-4" />
+            )}
+            Reiniciar instancia
+          </Button>
           <Button
             variant="outline"
             size="sm"

@@ -101,6 +101,7 @@ Todos bajo `/api`, todos exigen `Authorization: Bearer <PANEL_API_KEY>`.
 | `GET` | `/whatsapp/qr` | Generar QR de vinculación |
 | `POST` | `/whatsapp/connect` | Igual que `/whatsapp/qr` (compatibilidad) |
 | `POST` | `/whatsapp/logout` | Cerrar la sesión de WhatsApp |
+| `POST` | `/whatsapp/restart` | Reiniciar la instancia de Evolution |
 | `GET` | `/redis/conversations` | Memoria por conversación |
 | `DELETE` | `/redis/conversations/:id` | Borrar la memoria de una conversación |
 
