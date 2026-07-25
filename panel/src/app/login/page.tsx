@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 
+import { Signature, Wordmark } from "@/components/wordmark";
+
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -16,14 +18,15 @@ export default function LoginPage() {
       />
 
       <div className="relative w-full max-w-sm">
-        <div className="mb-8 flex items-center gap-2.5">
-          <div className="size-4 border border-foreground" aria-hidden="true" />
-          <span className="text-sm font-medium tracking-tight">AI Management</span>
+        <div className="mb-8 flex justify-center">
+          <Wordmark size="lg" />
         </div>
 
         <Suspense>
           <LoginForm />
         </Suspense>
+
+        <Signature className="mt-6 text-center" />
       </div>
     </div>
   );

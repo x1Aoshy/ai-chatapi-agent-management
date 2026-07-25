@@ -42,10 +42,21 @@ export function probeChatwoot() {
       headers: { api_access_token: config.chatwoot.token },
     });
 
-    if (response.status === 401) {
-      // Es el fallo más común del sistema: el token del bot se desincroniza
-      // del que guarda Chatwoot. Merece un mensaje reconocible.
-      return { status: 'offline', detail: '401 — token desincronizado' };
+    /*
+     * Un 401 NO significa que Chatwoot esté caído: significa que respondió,
+     * y por tanto está vivo. Marcarlo "offline" mandaba a buscar el problema
+     * al sitio equivocado mientras el servicio funcionaba perfectamente.
+     *
+     * Además, este endpoint es de nivel agente. El token del AgentBot sirve
+     * para publicar mensajes en sus conversaciones, pero no para listar las de
+     * la cuenta, así que aquí hace falta un token de usuario (Chatwoot →
+     * Perfil → Access Token), no el del bot.
+     */
+    if (response.status === 401 || response.status === 403) {
+      return {
+        status: 'degraded',
+        detail: `${response.status} — Chatwoot responde, pero el token no autoriza. Usa un token de usuario, no el del AgentBot.`,
+      };
     }
 
     return response.ok
