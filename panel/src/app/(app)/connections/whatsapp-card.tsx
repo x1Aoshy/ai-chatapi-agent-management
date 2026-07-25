@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, LogOut, RefreshCw, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
-import { QrCanvas } from "@/components/qr-code";
 import { StatusDot, STATUS_LABELS } from "@/components/status-dot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,7 +79,7 @@ export function WhatsAppCard({
 
         if (!active) return;
 
-        if (!response.ok || (!body?.code && !body?.base64)) {
+        if (!response.ok || !body?.base64) {
           // 409 significa que Evolution ya tiene sesión: no es un error que
           // mostrar en rojo, sino una señal de que hay que releer el estado.
           if (response.status === 409) {
@@ -199,18 +198,29 @@ export function WhatsAppCard({
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4 py-4">
-              {shownQr?.code ? (
-                <QrCanvas value={shownQr.code} size={240} />
-              ) : shownQr?.base64 ? (
-                // Respaldo: alguna versión de Evolution no expone `code`.
+              {/*
+                * Se usa el PNG que devuelve Evolution y no un QR redibujado a
+                * partir de `code`.
+                *
+                * Redibujarlo encajaba mejor con la paleta del panel, pero
+                * WhatsApp rechazaba el código resultante: lo escaneaba y
+                * respondía que no se podía vincular. El QR de vinculación es
+                * un formato del que WhatsApp es la autoridad, no un dato
+                * cualquiera que se pueda re-serializar; el que funciona es el
+                * oficial. El marco de 1px y el encuadre son lo que se conserva
+                * del intento.
+                */}
+              {shownQr?.base64 ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={shownQr.base64}
                   alt="Código QR para vincular WhatsApp"
-                  className="size-60 border border-border bg-white p-3"
+                  width={240}
+                  height={240}
+                  className="block size-60 border border-border bg-white p-3"
                 />
               ) : (
-                <Skeleton className="size-60" />
+                <Skeleton className="size-60 border border-border" />
               )}
 
               <div className="space-y-1 text-center">
