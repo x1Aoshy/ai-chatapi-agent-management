@@ -70,9 +70,15 @@ El bot detecta ese marcador en la respuesta y escala.
 Ambas rutas hacen exactamente lo mismo a continuación:
 
 1. `POST` del mensaje *"Te comunico con uno de nuestros asesores. Dame un momento."*
-2. `PATCH` de la conversación a `status: "open"` → sale de la cola del bot y entra
-   en la bandeja de los agentes humanos.
-3. `DEL chat_history:{conversationId}` → el agente humano empieza sin contexto de IA.
+2. `PATCH` de la conversación a `status: "open"` → sale de la cola del bot.
+3. `POST /assignments` → se asigna al agente o equipo de
+   `CHATWOOT_HANDOFF_ASSIGNEE_ID` / `CHATWOOT_HANDOFF_TEAM_ID`.
+4. `DEL chat_history:{conversationId}` → el agente humano empieza sin contexto de IA.
+
+El paso 3 no es opcional en la práctica: sin él la conversación queda en "Sin
+asignar", que no es la vista que mira un agente por defecto. Un fallo ahí se
+registra pero no revierte el paso 2 — que el bot deje de responder a quien pidió
+un humano importa más que quién la tenga asignada.
 
 ---
 

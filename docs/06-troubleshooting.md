@@ -116,6 +116,50 @@ antes de reintentar. **Cierra el puerto 3333 en el Security Group al terminar.**
 
 ---
 
+## El cliente pide agente y la conversación no llega a la bandeja
+
+**Síntoma.** El bot responde "Te comunico con uno de nuestros asesores", la
+conversación desaparece del bot, pero el agente no la ve.
+
+**Causa.** El traspaso son **dos pasos** y solo se hacía uno. Poner la
+conversación en `open` la saca de la cola del bot, pero si nadie la tiene
+asignada, Chatwoot la deja en **"Sin asignar"** — que no es la vista que un
+agente mira por defecto ("Míos").
+
+**Comprobar.** En Chatwoot, cambia el filtro de la bandeja a "Sin asignar": si
+las conversaciones están ahí, es esto.
+
+Desde el servidor:
+
+```bash
+sudo docker exec chatwoot-rails-1 bundle exec rails runner "
+Conversation.where(status: :open).last(5).each { |c|
+  puts \"##{c.display_id}  asignada_a=#{c.assignee_id.inspect}  equipo=#{c.team_id.inspect}\"
+}"
+```
+
+Un `asignada_a=nil` confirma el diagnóstico.
+
+**Solución.** Definir a quién se asigna, en el `.env` del bot:
+
+```bash
+# Ver los ids disponibles
+sudo docker exec chatwoot-rails-1 bundle exec rails runner \
+  "Account.find(2).users.each { |u| puts \"#{u.id}  #{u.email}\" }"
+sudo docker exec chatwoot-rails-1 bundle exec rails runner \
+  "Account.find(2).teams.each { |t| puts \"#{t.id}  #{t.name}\" }"
+```
+
+Luego `CHATWOOT_HANDOFF_ASSIGNEE_ID` (o `CHATWOOT_HANDOFF_TEAM_ID`) en
+`/home/ubuntu/api/.env` y `pm2 restart ai-bot --update-env`.
+
+**Alternativa sin tocar el bot.** Activar el reparto automático en la Inbox:
+Settings → Inboxes → ventas → Collaborators → *Enable auto assignment*. Chatwoot
+reparte entonces las conversaciones abiertas entre los agentes disponibles. Es
+más cómodo con varios agentes; la variable es más predecible con uno solo.
+
+---
+
 ## El QR se escanea pero WhatsApp dice que no se puede vincular
 
 **Síntoma.** El código aparece, el teléfono lo lee, y responde que no se pudo
