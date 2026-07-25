@@ -42,8 +42,21 @@ export function useAgentData<T>(
     // desmontado— para que una respuesta lenta no pise a otra más reciente.
     let active = true;
     const controller = new AbortController();
+    let interval: ReturnType<typeof setInterval> | undefined;
+    // Evita que dos sondeos se solapen si el servidor tarda más que el intervalo.
+    let inFlight = false;
+
+    function stopPolling() {
+      if (interval) {
+        clearInterval(interval);
+        interval = undefined;
+      }
+    }
 
     async function load() {
+      if (inFlight) return;
+      inFlight = true;
+
       try {
         const response = await fetch(path, {
           cache: "no-store",
@@ -60,6 +73,14 @@ export function useAgentData<T>(
             loading: false,
             status: response.status,
           });
+
+          /*
+           * 503 significa que el panel no tiene configurado AGENT_API_URL o
+           * AGENT_API_KEY. Eso no cambia hasta un redeploy, así que seguir
+           * sondeando solo gasta round-trips de autenticación contra Supabase
+           * —dos por petición— para recibir siempre la misma respuesta.
+           */
+          if (response.status === 503) stopPolling();
           return;
         }
 
@@ -76,17 +97,34 @@ export function useAgentData<T>(
           loading: false,
           status: null,
         });
+      } finally {
+        inFlight = false;
       }
+    }
+
+    // Sondear con la pestaña en segundo plano no aporta nada: nadie está
+    // mirando y el navegador estrangula los timers igualmente.
+    function tick() {
+      if (document.visibilityState === "visible") void load();
+    }
+
+    function onVisibilityChange() {
+      // Al volver a la pestaña, refresca ya en lugar de esperar al siguiente tick.
+      if (document.visibilityState === "visible") void load();
     }
 
     void load();
 
-    const interval = pollMs ? setInterval(() => void load(), pollMs) : undefined;
+    if (pollMs) {
+      interval = setInterval(tick, pollMs);
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
 
     return () => {
       active = false;
       controller.abort();
-      if (interval) clearInterval(interval);
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [path, pollMs, enabled, reloadToken]);
 
