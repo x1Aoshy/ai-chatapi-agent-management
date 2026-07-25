@@ -15,7 +15,7 @@ export default function DashboardPage() {
         title="Dashboard"
         description="Estado de los servicios que sostienen el bot."
       />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <DashboardContent />
       </div>
     </>

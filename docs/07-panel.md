@@ -27,8 +27,7 @@ Panel de administración web para operar el bot sin entrar por SSH.
 |------|-----------|
 | `/login` | Autenticación con Supabase |
 | `/` | Dashboard: estado del bot, WhatsApp, estadísticas, gráfica de mensajes |
-| `/training` | Editor de `instrucciones.txt` con historial de versiones |
-| `/knowledge` | Base de conocimiento vectorial (ver `09-conocimiento.md`) |
+| `/training` | Instrucciones + conocimiento, en pestañas (ver `09-conocimiento.md`) |
 | `/connections` | Estado y control de DeepSeek, Chatwoot, WhatsApp, Redis |
 | `/logs` | Visor de conversaciones en tiempo real |
 | `/settings` | Variables de entorno, modelo IA, TTL de memoria en Redis |

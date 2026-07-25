@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, LogOut, RefreshCw, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
+import { QrCanvas } from "@/components/qr-code";
 import { StatusDot, STATUS_LABELS } from "@/components/status-dot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,7 @@ export function WhatsAppCard({
 }) {
   const connected = service?.status === "online";
 
-  const [qr, setQr] = useState<string | null>(null);
+  const [qr, setQr] = useState<WhatsAppQr | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -80,7 +80,7 @@ export function WhatsAppCard({
 
         if (!active) return;
 
-        if (!response.ok || !body?.base64) {
+        if (!response.ok || (!body?.code && !body?.base64)) {
           // 409 significa que Evolution ya tiene sesión: no es un error que
           // mostrar en rojo, sino una señal de que hay que releer el estado.
           if (response.status === 409) {
@@ -92,7 +92,7 @@ export function WhatsAppCard({
           return;
         }
 
-        setQr(body.base64);
+        setQr(body);
         setQrError(null);
       } catch {
         if (active) setQrError("No se pudo contactar con el servidor.");
@@ -199,14 +199,15 @@ export function WhatsAppCard({
             </div>
           ) : (
             <div className="flex flex-col items-center gap-4 py-4">
-              {shownQr ? (
-                <Image
-                  src={shownQr}
+              {shownQr?.code ? (
+                <QrCanvas value={shownQr.code} size={240} />
+              ) : shownQr?.base64 ? (
+                // Respaldo: alguna versión de Evolution no expone `code`.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={shownQr.base64}
                   alt="Código QR para vincular WhatsApp"
-                  width={240}
-                  height={240}
-                  className="size-60 bg-white p-3"
-                  unoptimized
+                  className="size-60 border border-border bg-white p-3"
                 />
               ) : (
                 <Skeleton className="size-60" />

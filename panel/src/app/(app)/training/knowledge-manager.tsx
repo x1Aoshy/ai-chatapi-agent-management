@@ -214,7 +214,7 @@ export function KnowledgeManager() {
               {snippets.map((snippet) => (
                 <li
                   key={snippet.id}
-                  className="group flex items-start justify-between gap-4 px-5 py-4"
+                  className="flex items-start justify-between gap-4 px-5 py-4 transition-colors hover:bg-muted/30"
                 >
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-sm font-medium">{snippet.title}</p>
@@ -226,7 +226,7 @@ export function KnowledgeManager() {
                     </p>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                  <div className="flex shrink-0 items-center gap-1">
                     <Button
                       variant="ghost"
                       size="sm"

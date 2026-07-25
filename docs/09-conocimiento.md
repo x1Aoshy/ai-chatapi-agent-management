@@ -47,12 +47,15 @@ función `match_snippets`, y las políticas y permisos.
 **Panel (Vercel)** — genera los embeddings al guardar:
 
 ```
-OPENAI_API_KEY=sk-...
+EMBEDDING_PROVIDER=openai      # o "gemini"
+OPENAI_API_KEY=sk-...          # solo si el proveedor es openai
+GEMINI_API_KEY=...             # solo si el proveedor es gemini
 ```
 
 **Bot (`/home/ubuntu/api/.env`)** — busca en cada mensaje:
 
 ```
+EMBEDDING_PROVIDER=openai      # el MISMO que en el panel
 OPENAI_API_KEY=sk-...
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
@@ -67,18 +70,36 @@ Luego `pm2 restart ai-bot --update-env`. En el arranque, el log dice
 
 ### 3. Añadir conocimiento
 
-En el panel, `/knowledge`. Al guardar se genera el vector; sin él el fragmento
+En el panel, Entrenamiento → pestaña Conocimiento. Al guardar se genera el vector; sin él el fragmento
 existe pero el bot no puede encontrarlo.
 
 ---
 
 ## Decisiones
 
-**text-embedding-3-small, 1536 dimensiones.** DeepSeek no publica API de
-embeddings, así que los vectores vienen de OpenAI aunque la inferencia siga en
-DeepSeek. Cambiar de modelo obliga a recrear la columna y regenerar **todos**
-los vectores: los de modelos distintos no son comparables, y mezclarlos produce
-búsquedas silenciosamente incorrectas en vez de un error.
+**Dos proveedores de embeddings.** DeepSeek no publica API de embeddings, así
+que los vectores vienen de otro sitio aunque la inferencia siga en DeepSeek:
+
+| Proveedor | Modelo | Dim. | Coste |
+|-----------|--------|------|-------|
+| `openai` | `text-embedding-3-small` | 1536 | $0.02 / millón de tokens |
+| `gemini` | `text-embedding-004` | 768 | Nivel gratuito |
+
+A modo de referencia: 1000 mensajes al día rondan los 20 000 tokens diarios, es
+decir unos **$0.012 al mes** con OpenAI. El mínimo de recarga son $5 y duran
+años. Gemini evita el desembolso inicial a cambio de depender de un tercer
+proveedor y de sus cuotas.
+
+Gemini devuelve 768 dimensiones y se rellenan con ceros hasta 1536, la
+dimensión de la columna. No distorsiona nada: en similitud coseno los ceros no
+aportan ni al producto escalar ni a las normas, así que la similitud entre dos
+vectores rellenados es exactamente la misma que entre los originales. Permite
+cambiar de proveedor sin migrar la base.
+
+> **Cambiar de proveedor obliga a regenerar todos los fragmentos.** Los
+> vectores de modelos distintos no son comparables, y mezclarlos produce
+> búsquedas incorrectas **sin ningún error visible**. Tras el cambio hay que
+> reeditar y guardar cada fragmento desde el panel.
 
 **HNSW en lugar de IVFFlat.** IVFFlat necesita entrenarse sobre datos ya
 existentes y rinde mal con pocas filas. Esta tabla empieza con diez fragmentos,

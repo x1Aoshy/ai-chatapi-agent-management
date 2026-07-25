@@ -61,7 +61,7 @@ async function handleQr(_req, res, next) {
 
     const body = await response.json();
 
-    if (!body?.base64) {
+    if (!body?.base64 && !body?.code) {
       // Suele significar que la instancia ya está vinculada.
       return res.status(409).json({
         error: 'Evolution no devolvió QR. Puede que WhatsApp ya esté conectado.',
@@ -69,7 +69,15 @@ async function handleQr(_req, res, next) {
     }
 
     console.log('[whatsapp] QR generado');
-    res.json({ base64: body.base64 });
+
+    /*
+     * Se devuelve también `code`, el contenido en crudo del QR.
+     * Evolution renderiza su propio PNG con la paleta de WhatsApp, que no pega
+     * con nada en un panel monocromo. Con el texto original, el panel dibuja el
+     * código con los colores del sistema; `base64` queda como respaldo por si
+     * una versión de Evolution no expone `code`.
+     */
+    res.json({ base64: body.base64 ?? null, code: body.code ?? null });
   } catch (error) {
     next(error);
   }

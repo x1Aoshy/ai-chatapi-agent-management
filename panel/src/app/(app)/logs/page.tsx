@@ -15,7 +15,7 @@ export default function LogsPage() {
         title="Logs"
         description="Salida de PM2 del proceso ai-bot."
       />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <LogsViewer />
       </div>
     </>

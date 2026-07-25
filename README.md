@@ -62,7 +62,7 @@ para autenticación y shadcn/ui sobre un tema monocromático dark.
 
 ```
 panel/
-├── src/app/(app)/       # Shell autenticado: dashboard, training, knowledge, connections, logs, settings
+├── src/app/(app)/       # Shell autenticado: dashboard, training, connections, logs, settings
 ├── src/app/login/       # Autenticación
 ├── src/app/api/         # Route handlers que hablan con el middleware del servidor
 ├── src/components/ui/   # Componentes shadcn/ui

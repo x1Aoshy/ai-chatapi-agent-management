@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/page-header";
 
-import { TrainingEditor } from "./training-editor";
+import { TrainingTabs } from "./training-tabs";
 
 export const metadata: Metadata = {
   title: "Entrenamiento",
@@ -13,10 +13,10 @@ export default function TrainingPage() {
     <>
       <PageHeader
         title="Entrenamiento"
-        description="Prompt de sistema del bot. Los cambios se aplican al siguiente mensaje entrante, sin reiniciar."
+        description="Lo que el bot sabe: su personalidad fija y el conocimiento que consulta según la pregunta."
       />
-      <div className="p-6">
-        <TrainingEditor />
+      <div className="p-4 sm:p-6">
+        <TrainingTabs />
       </div>
     </>
   );
