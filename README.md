@@ -16,6 +16,7 @@ con memoria conversacional en Redis y escalado a agente humano.
 | Mesa de ayuda | Chatwoot (Rails + Sidekiq) | Docker, puerto 3000 |
 | Bot IA | Node.js + Express + OpenAI SDK → DeepSeek | PM2, puerto 5000 |
 | Memoria | Redis | Local, puerto 6379 |
+| Conocimiento | Supabase + pgvector | Supabase |
 | Base de datos | PostgreSQL (de Chatwoot) | Docker, puerto 5432 |
 | Panel admin | Next.js 16 + Supabase + shadcn/ui | Vercel (planificado) |
 
@@ -33,6 +34,7 @@ con memoria conversacional en Redis y escalado a agente humano.
 | [06 — Troubleshooting](docs/06-troubleshooting.md) | Problemas conocidos y sus soluciones |
 | [07 — Panel](docs/07-panel.md) | Panel "AI Management" y especificación del middleware del servidor |
 | [08 — Seguridad](docs/08-seguridad.md) | Inventario de credenciales, rotación, superficie expuesta |
+| [09 — Conocimiento](docs/09-conocimiento.md) | Base vectorial (RAG): puesta en marcha y diagnóstico |
 
 ---
 
@@ -60,7 +62,7 @@ para autenticación y shadcn/ui sobre un tema monocromático dark.
 
 ```
 panel/
-├── src/app/(app)/       # Shell autenticado: dashboard, training, connections, logs, settings
+├── src/app/(app)/       # Shell autenticado: dashboard, training, knowledge, connections, logs, settings
 ├── src/app/login/       # Autenticación
 ├── src/app/api/         # Route handlers que hablan con el middleware del servidor
 ├── src/components/ui/   # Componentes shadcn/ui

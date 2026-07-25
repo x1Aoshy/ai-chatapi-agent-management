@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Brain,
   LayoutDashboard,
   LogOut,
   Network,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/training", label: "Entrenamiento", icon: BookOpen },
+  { href: "/knowledge", label: "Conocimiento", icon: Brain },
   { href: "/connections", label: "Conexiones", icon: Network },
   { href: "/logs", label: "Logs", icon: Terminal },
   { href: "/settings", label: "Ajustes", icon: Settings },

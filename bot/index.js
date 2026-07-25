@@ -5,6 +5,8 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import { createClient } from 'redis';
 
+import { buildSystemPrompt, searchKnowledge } from './knowledge.js';
+
 const app = express();
 app.use(express.json());
 
@@ -61,8 +63,20 @@ app.post('/webhook', async (req, res) => {
         } catch(e) {}
       }
 
+      // Contexto dinámico de la base de conocimiento. Devuelve [] ante
+      // cualquier fallo, así que el bot responde igual aunque el RAG caiga.
+      const snippets = await searchKnowledge(msg);
+      if (snippets.length > 0) {
+        console.log(
+          '[🧠 CONTEXTO] ' +
+            snippets
+              .map((s) => s.title + ' (' + s.similarity.toFixed(2) + ')')
+              .join(', ')
+        );
+      }
+
       const messages = [
-        { role: 'system', content: conocimientos },
+        { role: 'system', content: buildSystemPrompt(conocimientos, snippets) },
         ...history,
         { role: 'user', content: msg }
       ];

@@ -96,7 +96,9 @@ Todos bajo `/api`, todos exigen `Authorization: Bearer <PANEL_API_KEY>`.
 | `GET` | `/logs` | Últimas N líneas de PM2 |
 | `GET` | `/logs/stream` | Logs en tiempo real (Server-Sent Events) |
 | `GET` | `/whatsapp/state` | Estado de la conexión de WhatsApp |
-| `POST` | `/whatsapp/connect` | Generar QR de vinculación |
+| `GET` | `/whatsapp/qr` | Generar QR de vinculación |
+| `POST` | `/whatsapp/connect` | Igual que `/whatsapp/qr` (compatibilidad) |
+| `POST` | `/whatsapp/logout` | Cerrar la sesión de WhatsApp |
 | `GET` | `/redis/conversations` | Memoria por conversación |
 | `DELETE` | `/redis/conversations/:id` | Borrar la memoria de una conversación |
 
@@ -145,9 +147,11 @@ a `path.join`.
 `/api/health` colgado justo cuando Redis está caído — es decir, cuando más
 falta hace el dashboard.
 
-**Límite de peticiones.** 120/min en general, 3/min en `/restart` y 5/min en
-`/whatsapp/connect`. El reinicio corta el servicio unos segundos y el QR
-equivale a una sesión de WhatsApp.
+**Límite de peticiones.** 120/min en general, 3/min en `/restart` y en
+`/whatsapp/logout`, 5/min en el QR. El reinicio corta el servicio unos segundos,
+el QR equivale a una sesión de WhatsApp, y el logout deja al bot incomunicado
+hasta que alguien escanee un código nuevo: es la operación más destructiva del
+panel.
 
 **Logs en tiempo real.** `/logs/stream` sigue el crecimiento de los archivos de
 PM2 sondeando su tamaño cada segundo, en vez de `fs.watch`: watch se comporta
