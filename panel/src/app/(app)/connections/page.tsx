@@ -15,7 +15,7 @@ export default function ConnectionsPage() {
         title="Conexiones"
         description="Estado de los servicios externos y control de la sesión de WhatsApp."
       />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <ConnectionsContent />
       </div>
     </>

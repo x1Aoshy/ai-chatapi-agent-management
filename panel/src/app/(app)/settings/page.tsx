@@ -15,7 +15,7 @@ export default function SettingsPage() {
         title="Ajustes"
         description="Variables de entorno del bot y control del proceso."
       />
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <SettingsForm />
       </div>
     </>

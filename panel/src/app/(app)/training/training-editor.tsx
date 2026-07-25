@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { History, Loader2, RotateCcw, Save } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,6 +45,39 @@ export function TrainingEditor() {
   }
 
   const dirty = draft !== saved;
+
+  /*
+   * Ctrl/⌘+S guarda. Es el reflejo de cualquiera que edite texto, y sin
+   * capturarlo el navegador abre su diálogo de "guardar página", que además de
+   * inútil interrumpe.
+   */
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "s") {
+        event.preventDefault();
+        if (dirty && !saving) void onSave();
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  /*
+   * Aviso al cerrar la pestaña con cambios sin guardar. El prompt es la
+   * personalidad del bot: perder una reescritura por un cierre accidental
+   * duele bastante más que el segundo que cuesta confirmar.
+   */
+  useEffect(() => {
+    if (!dirty) return;
+
+    function warn(event: BeforeUnloadEvent) {
+      event.preventDefault();
+    }
+
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   async function onSave() {
     setSaving(true);
@@ -110,7 +143,11 @@ export function TrainingEditor() {
             <CardTitle>instrucciones.txt</CardTitle>
             <p className="text-xs text-muted-foreground">
               {new Blob([draft]).size} bytes
-              {dirty ? " · cambios sin guardar" : ""}
+              {dirty ? (
+                <span className="text-warning"> · sin guardar</span>
+              ) : (
+                <span className="text-muted-foreground/60"> · guardado</span>
+              )}
             </p>
           </div>
           <Button size="sm" onClick={onSave} disabled={!dirty || saving}>
@@ -120,6 +157,7 @@ export function TrainingEditor() {
               <Save className="size-4" />
             )}
             Guardar
+            <kbd className="ml-1 hidden text-[10px] opacity-50 sm:inline">⌘S</kbd>
           </Button>
         </CardHeader>
         <CardContent className="p-0">

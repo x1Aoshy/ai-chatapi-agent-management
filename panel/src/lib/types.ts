@@ -70,8 +70,10 @@ export interface WhatsAppState {
 }
 
 export interface WhatsAppQr {
-  /** data:image/png;base64,... */
-  base64: string;
+  /** PNG ya renderizado por Evolution, con su propia paleta. Respaldo. */
+  base64: string | null;
+  /** Texto en crudo del código, para dibujarlo con la paleta del panel. */
+  code: string | null;
 }
 
 export interface LogLine {
