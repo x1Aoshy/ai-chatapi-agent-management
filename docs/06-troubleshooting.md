@@ -17,6 +17,7 @@ que los logs del bot parecen normales pero el cliente no recibe nada.
 | Problema | Causa | Solución |
 |----------|-------|----------|
 | Recibe mensajes pero no responde por WhatsApp | Algún salto de salida roto | `node diagnostico.mjs` |
+| Chatwoot no entrega nada a WhatsApp (ni el bot ni los agentes) | La `url` de Evolution apunta a la IP pública de EC2 | Cambiarla a `http://chatwoot-rails-1:3000` |
 | Error 401 al enviar mensajes | Token del bot desincronizado | Extraer token fresco con `rails runner "puts AgentBot.first.access_token.token"` y actualizar `.env` |
 | *"Conversation marked open due to error with agent bot"* | Webhook URL incorrecta o ruta cambiada | Verificar que `outgoing_url` del bot coincida con la ruta de `index.js` |
 | WhatsApp desconectado (`state: close`) | Sesión expirada o servidor reiniciado | Generar nuevo QR vía Evolution API |
@@ -333,31 +334,97 @@ no reacciona. Nada aparece en `pm2 logs ai-bot`.
 conversaciones nacen abiertas en lugar de pendientes, y Chatwoot solo dispara el
 AgentBot sobre conversaciones pendientes.
 
-**Solución.**
+**Solución.** Ver *Cómo cambiar la configuración de Chatwoot en Evolution* más
+abajo: `conversationPending` se corrige con la misma receta que cualquier otro
+campo.
+
+`conversationPending` solo afecta a conversaciones **nuevas**. Las que ya están
+abiertas siguen abiertas, así que para comprobar el arreglo hay que resolver la
+conversación en Chatwoot o escribir desde un número que no haya escrito antes.
+
+---
+
+## Evolution no entrega los mensajes salientes de Chatwoot
+
+**Síntoma.** Los mensajes entran a Chatwoot con normalidad, pero los que salen
+—los del bot y los que escribe un agente a mano— se quedan ahí y nunca llegan al
+WhatsApp del cliente. En Sidekiq, el `WebhookJob` hacia
+`http://evo-api:8080/chatwoot/webhook/ventas` falla a los 5 s con
+`Net::ReadTimeout`.
+
+**Causa.** La `url` que Evolution tiene guardada para Chatwoot no es alcanzable
+**desde dentro del contenedor de Evolution**. El caso más traicionero es
+apuntarla a la **IP pública de la instancia EC2**: parece razonable, la ves
+funcionar desde el navegador, y desde dentro del contenedor no funciona nunca.
+AWS **no hace hairpin NAT** hacia la IP pública de la propia instancia, así que
+esa conexión sale al gateway de internet y no vuelve.
+
+**Comprobar.**
 
 ```bash
-# Verificar
-curl -s "http://localhost:8080/chatwoot/find/ventas" \
-  -H "apikey: $EVOLUTION_API_KEY"
-
-# Corregir
-curl -s -X POST "http://localhost:8080/chatwoot/set/ventas" \
-  -H "apikey: $EVOLUTION_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "enabled": true,
-    "accountId": "2",
-    "token": "'"$INBOX_TOKEN"'",
-    "url": "http://172.17.0.1:3000",
-    "nameInbox": "ventas",
-    "signMsg": false,
-    "reopenConversation": true,
-    "conversationPending": true
-  }'
+EK=$(grep '^EVOLUTION_API_KEY' /home/ubuntu/aimanagement/server/.env | cut -d= -f2-)
+curl -s "http://localhost:8080/chatwoot/find/ventas" -H "apikey: $EK"; echo
 ```
 
-El `POST /chatwoot/set` **reemplaza la configuración completa**, no hace merge:
-envía siempre todos los campos, incluido `token`, o perderás los que omitas.
+Si `url` es una IP pública, es esto. Y para confirmarlo sin adivinar, se prueba
+desde dentro del propio contenedor:
+
+```bash
+sudo docker exec evo-api node -e 'fetch("http://chatwoot-rails-1:3000/").then(r=>console.log("OK HTTP "+r.status)).catch(e=>console.log("FALLA "+(e.cause?.code||e.message)))'
+```
+
+**Solución.** Usar el **nombre del contenedor**, no una IP. `evo-api` y Chatwoot
+comparten la red `chatwoot_default`, así que el DNS interno de Docker resuelve
+`chatwoot-rails-1` sin pasar por ninguna gateway — y sobrevive a que Docker
+recree sus redes, que es justo lo que rompe las IPs literales:
+
+```
+url: http://chatwoot-rails-1:3000
+```
+
+Si los contenedores no comparten red, se conectan una vez y ya:
+
+```bash
+sudo docker network connect chatwoot_default evo-api
+```
+
+---
+
+## Cómo cambiar la configuración de Chatwoot en Evolution
+
+`POST /chatwoot/set` **reemplaza el objeto entero**, no hace merge: los campos
+que omitas se pierden. Y no se puede reenviar tal cual lo que devuelve
+`/chatwoot/find`, porque `find` devuelve `null` en los campos vacíos y el
+esquema de `set` los rechaza:
+
+```json
+{"status":400,"error":"Bad Request",
+ "response":{"message":[["daysLimitImportMessages is not of a type(s) number"]]}}
+```
+
+La receta que funciona: leer la configuración actual, quitar los nulos y el
+`webhook_url` (que es derivado), cambiar solo lo que interese, y reenviarla
+completa.
+
+```bash
+EK=$(grep '^EVOLUTION_API_KEY' /home/ubuntu/aimanagement/server/.env | cut -d= -f2-)
+
+curl -s http://localhost:8080/chatwoot/find/ventas -H "apikey: $EK" \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const c=JSON.parse(s);
+      delete c.webhook_url;
+      for (const k of Object.keys(c)) if (c[k]===null) delete c[k];
+      c.url="http://chatwoot-rails-1:3000";     // <- lo que quieras cambiar
+      c.conversationPending=true;
+      console.log(JSON.stringify(c));
+    })' > /tmp/cw.json
+
+curl -s -X POST http://localhost:8080/chatwoot/set/ventas -H "apikey: $EK" \
+  -H 'Content-Type: application/json' -d @/tmp/cw.json; echo
+```
+
+Leer y reenviar en vez de escribir el JSON a mano evita las dos formas de
+romperlo: omitir un campo, y transcribir mal el token de la inbox.
 
 ---
 

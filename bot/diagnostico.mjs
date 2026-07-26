@@ -145,6 +145,34 @@ function section(title) {
   console.log('─'.repeat(72));
 }
 
+/**
+ * ¿Es una IPv4 enrutable en internet? Los nombres de host devuelven false: un
+ * nombre de contenedor lo resuelve el DNS de Docker y es justo lo que se busca.
+ */
+function isPublicIp(url) {
+  let host;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    return false;
+  }
+
+  const parts = host.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+    return false;
+  }
+
+  const [a, b] = parts;
+  const privada =
+    a === 10 ||
+    a === 127 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254);
+
+  return !privada;
+}
+
 // ------------------------------------------------------------------ sondeos
 
 /** ¿Hay algo escuchando en ese puerto? */
@@ -389,6 +417,20 @@ if (!EVO_KEY) {
     note('url que Evolution usa para Chatwoot: ' + (conf.url || '(vacía)'));
     note('cuenta: ' + (conf.accountId ?? conf.account_id ?? '?') +
          '   inbox: ' + (conf.nameInbox ?? conf.name_inbox ?? '?'));
+
+    /*
+     * Esa url la usa Evolution DESDE DENTRO de su contenedor. Una IP pública
+     * ahí no funciona aunque el navegador la abra sin problema: AWS no hace
+     * hairpin NAT hacia la IP pública de la propia instancia, así que la
+     * conexión sale al gateway de internet y no vuelve. El síntoma es que
+     * Chatwoot acepta los mensajes y no entrega ninguno.
+     */
+    if (isPublicIp(conf.url)) {
+      check('URL de Chatwoot alcanzable por Evolution', 'bad', 'es una IP pública');
+      note('desde el contenedor de Evolution eso no se alcanza (AWS no hace hairpin NAT)');
+      note('usa el nombre del contenedor: http://chatwoot-rails-1:3000');
+      note('receta completa en docs/06-troubleshooting.md');
+    }
 
     /*
      * conversationPending gobierna el sentido de ENTRADA: si es false las
