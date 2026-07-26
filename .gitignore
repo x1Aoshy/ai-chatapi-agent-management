@@ -19,6 +19,11 @@ out/
 build/
 .vercel
 
+# Copia de trabajo del prompt que se monta en el contenedor del bot. No se
+# versiona: la fuente de verdad es bot/instrucciones.txt, y tener dos copias
+# bajo control de versiones garantiza que acaben divergiendo.
+/bot/data/
+
 # Logs
 # Anclado a la raíz a propósito: sin la barra inicial, este patrón coincide con
 # CUALQUIER carpeta llamada "logs" a cualquier profundidad, y llegó a excluir
