@@ -1,15 +1,101 @@
 # 06 — Problemas conocidos y soluciones
 
+## Empieza por aquí
+
+```bash
+cd /home/ubuntu/api && node diagnostico.mjs
+```
+
+Prueba los cuatro saltos que recorre una respuesta —bot → Chatwoot → Evolution →
+WhatsApp— por separado y dice cuál falla. Está pensado justo para los casos en
+que los logs del bot parecen normales pero el cliente no recibe nada.
+
+---
+
 ## Tabla de referencia rápida
 
 | Problema | Causa | Solución |
 |----------|-------|----------|
+| Recibe mensajes pero no responde por WhatsApp | Algún salto de salida roto | `node diagnostico.mjs` |
 | Error 401 al enviar mensajes | Token del bot desincronizado | Extraer token fresco con `rails runner "puts AgentBot.first.access_token.token"` y actualizar `.env` |
 | *"Conversation marked open due to error with agent bot"* | Webhook URL incorrecta o ruta cambiada | Verificar que `outgoing_url` del bot coincida con la ruta de `index.js` |
 | WhatsApp desconectado (`state: close`) | Sesión expirada o servidor reiniciado | Generar nuevo QR vía Evolution API |
 | Bot no recibe mensajes nuevos | `conversationPending: false` en Evolution API | Actualizar a `true` vía `POST /chatwoot/set/ventas` |
 | Docker cambia IP interna al reiniciar | Docker recrea redes virtuales | Verificar con `docker exec chatwoot-rails-1 ip route show \| grep default` |
 | DeepSeek rechaza el modelo | La API cambió nombres de modelos | Actualizar `DEEPSEEK_MODEL` en `.env` (actualmente `deepseek-v4-flash`) |
+
+---
+
+## El bot recibe los mensajes pero no responde por WhatsApp
+
+**Síntoma.** En `pm2 logs ai-bot` se ve todo el ciclo: `[📥 CLIENTE]`, el
+contexto, `[🤖 MARCOS]` con la respuesta generada. Pero el cliente no recibe
+nada. Y si escribe "agente", tampoco pasa nada.
+
+**Por qué las dos cosas a la vez.** Porque son la misma cosa. El bot usa **dos
+caminos distintos** y solo uno aparece en sus logs:
+
+```
+entrada:  Chatwoot (Sidekiq)  ──POST /webhook──▶  bot
+salida:   bot  ──POST /api/v1/...──▶  Chatwoot  ──▶  Evolution  ──▶  WhatsApp
+```
+
+Sidekiq llama al bot: por eso los mensajes entran. El bot llama a la API de
+Chatwoot: responder y traspasar a un agente **son las dos llamadas de salida**,
+con la misma URL y el mismo token. Si la salida está rota, se caen justo esas
+dos y nada más — que es exactamente el síntoma.
+
+**Diagnóstico.**
+
+```bash
+cd /home/ubuntu/api
+node diagnostico.mjs
+```
+
+Sin argumentos comprueba lo que puede. Para la prueba decisiva —un envío real—
+hace falta una conversación; la busca en Redis, y si no la encuentra:
+
+```bash
+node diagnostico.mjs --conversation 42     # el id sale de la URL en Chatwoot
+```
+
+Ese envío escribe una **nota privada**: mismo endpoint, mismo token y misma
+conversación que un mensaje normal, pero el cliente no la ve. Es la única forma
+de validar el token del AgentBot sin escribirle a nadie, porque Chatwoot lo
+valida contra la inbox de la conversación y no existe un endpoint de "¿este
+token sirve?".
+
+**Las cuatro causas que separa.**
+
+| Veredicto | Qué pasó | Arreglo |
+|-----------|----------|---------|
+| `CHATWOOT_BASE_URL` apunta a una dirección muerta | Docker recreó sus redes y cambió la gateway | El script dice qué URL sí responde: ponla en el `.env` y `pm2 restart ai-bot --update-env` |
+| Chatwoot rechaza el token | `CHATWOOT_ACCESS_TOKEN` desincronizado | Ver *Error 401* más abajo |
+| Sesión de WhatsApp caída | `state` distinto de `open` | Volver a vincular desde el panel |
+| Chatwoot acepta pero no llega | El salto Chatwoot → Evolution | Ver abajo |
+
+**Si el veredicto es el cuarto.** Abre la conversación en Chatwoot. Si las
+respuestas del bot **están ahí** pero no llegaron al teléfono, el bot hizo su
+trabajo y el fallo está en la entrega de Chatwoot a Evolution. Lo más habitual
+es que se recreara la instancia de Evolution y ahora exista un buzón nuevo:
+
+```bash
+# Relanza el diagnóstico con un token de usuario para ver los buzones
+CHATWOOT_USER_TOKEN=<token de Perfil → Access Token> node diagnostico.mjs
+```
+
+Dos buzones de tipo API es la firma de ese caso: los mensajes entran por el
+nuevo y el AgentBot sigue colgado del viejo.
+
+**Prevención.** El bot ahora comprueba la salida al arrancar. En `pm2 logs
+ai-bot`, tras `📄 instrucciones.txt cargado`, debe salir:
+
+```
+🔌 Chatwoot alcanzable en http://172.17.0.1:3000 (HTTP 200)
+```
+
+Si en su lugar sale `🚨 NO se alcanza Chatwoot en …`, el problema está
+identificado antes de que ningún cliente se quede sin respuesta.
 
 ---
 
@@ -357,6 +443,15 @@ mensaje es la confirmación directa.
 **Solución.** Levantar Redis y reiniciar el bot. Nota que el bot **solo intenta
 conectar al arrancar**: si Redis vuelve después, el bot no se reconecta solo y hay
 que reiniciarlo con `pm2 restart ai-bot`.
+
+> **Antes el bot ni siquiera arrancaba sin Redis.** `node-redis` reintenta la
+> conexión indefinidamente por defecto, y mientras tanto `connect()` no resuelve
+> ni rechaza. Como esa llamada está en el nivel superior del módulo, el proceso
+> se quedaba colgado **antes** de escuchar en el 5000: PM2 lo mostraba "online"
+> y no respondía a nada. Ahora se rinde tras tres intentos y arranca sin
+> memoria, que es la degradación prevista.
+
+Si Redis escucha en otro sitio, `REDIS_URL` en el `.env` lo redirige.
 
 ---
 
