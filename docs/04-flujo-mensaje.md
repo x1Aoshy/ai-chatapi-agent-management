@@ -125,5 +125,15 @@ nunca expira a media charla; expira 24 h después del último mensaje.
 | 8 | Redis caído | El bot responde, pero se presenta en cada mensaje |
 | 9 | Modelo inválido o cuota agotada | Error en `pm2 logs`; el cliente no recibe respuesta |
 | 12–13 | Token de Chatwoot desincronizado | `401` en `pm2 logs`; la IA responde pero nada llega |
+| 12–14 | Bot sin ruta hacia Chatwoot | La IA responde en los logs y nada llega ni se traspasa |
 
-El diagnóstico detallado de cada uno está en `06-troubleshooting.md`.
+Los pasos 1–11 y los 12–14 recorren caminos de red **opuestos**: los primeros
+llegan al bot, los últimos salen de él. Un fallo de salida no aparece en los
+logs de entrada, así que el bot parece sano mientras ningún cliente recibe nada.
+
+```bash
+cd /home/ubuntu/api && node diagnostico.mjs
+```
+
+Prueba cada salto por separado y señala el que falla. El diagnóstico detallado
+de cada caso está en `06-troubleshooting.md`.
