@@ -1,0 +1,63 @@
+# AI router + its conversation memory.
+#
+# Chatwoot and Evolution API are NOT defined here: they have their own compose
+# files and their own lifecycles. This stack joins their network instead, so
+# every hop resolves by container name and no hard-coded IP can go stale when
+# Docker recreates its bridges.
+#
+#   docker compose up -d --build
+#
+# Prerequisites:
+#   1. The Chatwoot stack is running and owns the `chatwoot_default` network.
+#   2. bot/.env exists (copy bot/.env.example and fill it in).
+#
+# After the first start, point Chatwoot's AgentBot at the container:
+#   outgoing_url = http://ai-bot:5000/webhook
+# See the README section "Wiring Chatwoot to the container".
+
+name: ai-management
+
+services:
+  ai-redis:
+    image: redis:7-alpine
+    container_name: ai-redis
+    restart: unless-stopped
+    # Conversation memory is a cache with a 24 h TTL, not a system of record:
+    # an occasional lost snapshot costs the bot some context, nothing more.
+    # appendonly is off on purpose — this machine is short on both RAM and IO.
+    command: ["redis-server", "--save", "300", "10", "--appendonly", "no"]
+    volumes:
+      - ai_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  ai-bot:
+    build: ./bot
+    container_name: ai-bot
+    restart: unless-stopped
+    env_file: ./bot/.env
+    environment:
+      # These three override whatever bot/.env says, because inside the network
+      # the right addresses are container names, not host IPs.
+      REDIS_URL: redis://ai-redis:6379
+      CHATWOOT_BASE_URL: http://chatwoot-rails-1:3000
+      INSTRUCTIONS_PATH: /data/instrucciones.txt
+    volumes:
+      # A DIRECTORY, not a single file. The panel rewrites the prompt with
+      # rename(), and a single-file bind mount would leave the container
+      # looking at the old inode forever.
+      - ./bot/data:/data
+    depends_on:
+      ai-redis:
+        condition: service_healthy
+
+volumes:
+  ai_redis_data:
+
+networks:
+  default:
+    name: chatwoot_default
+    external: true

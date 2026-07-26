@@ -18,7 +18,16 @@ import { buildSystemPrompt, searchKnowledge } from './knowledge.js';
  * PM2 arranque el bot desde otro sitio para que no lo encuentre.
  */
 const BOT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const INSTRUCTIONS_PATH = path.join(BOT_DIR, 'instrucciones.txt');
+
+/*
+ * INSTRUCTIONS_PATH permite apuntarlo a otro sitio. Hace falta en Docker: el
+ * panel reescribe este archivo con rename() —una escritura atómica—, y un bind
+ * mount de un ARCHIVO suelto se rompe con eso, porque el contenedor sigue
+ * viendo el inodo viejo. Con la ruta dentro de un DIRECTORIO montado, el
+ * rename ocurre en el mismo volumen y el bot ve el contenido nuevo.
+ */
+const INSTRUCTIONS_PATH =
+  process.env.INSTRUCTIONS_PATH || path.join(BOT_DIR, 'instrucciones.txt');
 
 /*
  * Prompt de reserva. Es UNA FRASE: sin personalidad, sin catálogo, sin las
