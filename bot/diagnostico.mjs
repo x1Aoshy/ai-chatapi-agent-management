@@ -531,6 +531,19 @@ if (!botPort.ok) {
   console.log('    tampoco aparecen en Chatwoot');
   console.log('      → el bot no está llegando a llamar a la API. Mira pm2 logs ai-bot');
   console.log('        buscando "❌ Error enviando"');
+  console.log('');
+  /*
+   * El caso que este script no puede ver: todos los saltos responden y aun así
+   * no llega nada, porque quien rechaza es WhatsApp. Se comprueba en los logs
+   * de Evolution, no aquí, así que al menos se dice dónde mirar.
+   */
+  console.log('  Y si todo lo de arriba está en verde pero sigue sin llegar nada,');
+  console.log('  comprueba si es WhatsApp quien rechaza:');
+  console.log('');
+  console.log('    sudo docker logs --tail 200 evo-api 2>&1 | grep -c 463');
+  console.log('');
+  console.log('  Cualquier número distinto de 0 es el time-lock de WhatsApp, y no');
+  console.log('  se arregla desde aquí. Ver docs/06-troubleshooting.md → "Error 463".');
 } else {
   console.log('  Faltó la prueba decisiva: el envío real.');
   console.log('  Relanza indicando una conversación cualquiera de Chatwoot:');
