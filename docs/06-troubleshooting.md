@@ -16,6 +16,7 @@ que los logs del bot parecen normales pero el cliente no recibe nada.
 
 | Problema | Causa | Solución |
 |----------|-------|----------|
+| `status: 0` con `messageStubParameters: ["463"]` | Time-lock de WhatsApp, no es este sistema | Esperar; no reintentar; `groupsIgnore: true` |
 | Recibe mensajes pero no responde por WhatsApp | Algún salto de salida roto | `node diagnostico.mjs` |
 | Chatwoot no entrega nada a WhatsApp (ni el bot ni los agentes) | La `url` de Evolution apunta a la IP pública de EC2 | Cambiarla a `http://chatwoot-rails-1:3000` |
 | Error 401 al enviar mensajes | Token del bot desincronizado | Extraer token fresco con `rails runner "puts AgentBot.first.access_token.token"` y actualizar `.env` |
@@ -24,6 +25,94 @@ que los logs del bot parecen normales pero el cliente no recibe nada.
 | Bot no recibe mensajes nuevos | `conversationPending: false` en Evolution API | Actualizar a `true` vía `POST /chatwoot/set/ventas` |
 | Docker cambia IP interna al reiniciar | Docker recrea redes virtuales | Verificar con `docker exec chatwoot-rails-1 ip route show \| grep default` |
 | DeepSeek rechaza el modelo | La API cambió nombres de modelos | Actualizar `DEEPSEEK_MODEL` en `.env` (actualmente `deepseek-v4-flash`) |
+
+---
+
+## Error 463: WhatsApp acepta el mensaje y un segundo después lo marca en error
+
+**Síntoma.** Entra todo con normalidad y no sale nada. En los logs de Evolution,
+por cada envío:
+
+```
+"update": { "status": 0, "messageStubParameters": ["463"] }
+```
+
+El mensaje nace en `status: 1` (pendiente) y cae a `status: 0` (error) al
+segundo siguiente. Falla igual desde Chatwoot que desde la API directa de
+Evolution, con cualquier destinatario, y con una sesión recién vinculada.
+
+**Causa. No es este sistema.** `463` es `NackCallerReachoutTimelocked`: el
+*reach-out time-lock* de WhatsApp, un bloqueo temporal por tiempo que se aplica
+a las cuentas que escriben a gente que WhatsApp considera desconocida.
+
+Baileys —la librería que Evolution usa por dentro— no incluye los campos
+`tctoken` y `cstoken` en los mensajes salientes. Esos campos son los que
+acreditan "este contacto me escribió primero". Sin ellos, el servidor cuenta
+**cada** envío como abordar a un desconocido, acumula, y acaba bloqueando la
+cuenta para enviar. Recibir no cuenta como abordar a nadie: por eso entra todo
+y no sale nada.
+
+**Cómo reconocerlo.** Ningún cambio de configuración lo arregla, y eso mismo es
+el diagnóstico. Fallan todos los destinatarios (el bloqueo es del emisor);
+re-vincular no cambia nada (es de la cuenta, no de la sesión); no hay ningún
+aviso en la app (no es un baneo); y a los **grupos** sí llegan los mensajes,
+porque el time-lock solo aplica a chats privados.
+
+**Qué hacer.**
+
+1. **Dejar de enviar.** Cada intento fallido realimenta el bloqueo. Es lo peor
+   que se puede hacer mientras dura.
+2. **Esperar.** Se libera solo. Al hacerlo, WhatsApp entrega de golpe todo lo
+   que quedó en cola — conviene tenerlo previsto, porque la cascada es visible
+   para los destinatarios.
+3. **Bajar el ritmo automático** antes de que vuelva a ocurrir (ver abajo).
+
+**Cómo evitar que se repita.**
+
+Lo primero, que el bot no conteste en grupos. Es tráfico automático que no
+aporta nada, gasta cuota del modelo y alimenta el bloqueo:
+
+```bash
+EK=$(grep '^EVOLUTION_API_KEY' /home/ubuntu/aimanagement/server/.env | cut -d= -f2-)
+
+curl -s http://localhost:8080/settings/find/ventas -H "apikey: $EK" \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const c=JSON.parse(s);
+      for (const k of Object.keys(c)) if (c[k]===null) delete c[k];
+      delete c.id; delete c.instanceId; delete c.createdAt; delete c.updatedAt;
+      c.groupsIgnore = true;
+      console.log(JSON.stringify(c));
+    })' > /tmp/set.json
+
+curl -s -X POST http://localhost:8080/settings/set/ventas -H "apikey: $EK" \
+  -H 'Content-Type: application/json' -d @/tmp/set.json; echo
+```
+
+`POST /settings/set` reemplaza el objeto entero, igual que `/chatwoot/set`: hay
+que leer, limpiar y reenviar. Los `null` que devuelve `find` no pasan su propia
+validación.
+
+Además ayuda que el número se comporte como un número normal: contactos
+guardados, conversaciones reales desde el teléfono, y nada de ráfagas de
+pruebas justo después de salir de un bloqueo.
+
+**La solución de fondo.** Hay trabajo en curso en Baileys para añadir `tctoken`
+y `cstoken` ([investigación](https://github.com/WhiskeySockets/Baileys/issues/2441),
+[caso abierto](https://github.com/WhiskeySockets/Baileys/issues/2698)); cuando
+Evolution publique una versión con eso, desaparece. La alternativa definitiva es
+la **API oficial de WhatsApp Cloud**, que Chatwoot soporta como canal nativo:
+se paga por conversación, pero no tiene límites de este tipo porque es la vía
+autorizada, y no obliga a tocar el bot, el panel ni el RAG — solo cambia el
+buzón.
+
+> **Nota de campo.** Este diagnóstico costó una noche entera de descartes.
+> Antes de llegar aquí se revisaron y corrigieron la URL de Chatwoot en
+> Evolution, `conversationPending`, la conexión al PostgreSQL de Chatwoot, la
+> carga de `instrucciones.txt` y la asignación en el traspaso. Todo eso estaba
+> realmente mal y su arreglo sigue siendo válido, pero **ninguna de esas cosas
+> era la que impedía los envíos**. La señal que lo separa todo es que el fallo
+> persiste con la API directa de Evolution: si `POST /message/sendText` también
+> devuelve 463, este sistema está descartado y el problema es de la cuenta.
 
 ---
 
