@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 
 import { DashboardContent } from "./dashboard-content";
 
@@ -12,12 +12,13 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Panel"
         title="Dashboard"
-        description="Estado de los servicios que sostienen el bot."
+        description="Estado de los servicios que sostienen el bot y del proceso que lo ejecuta."
       />
-      <div className="p-6">
+      <PageBody>
         <DashboardContent />
-      </div>
+      </PageBody>
     </>
   );
 }

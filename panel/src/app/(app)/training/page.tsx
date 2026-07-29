@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 
 import { TrainingEditor } from "./training-editor";
 
@@ -12,12 +12,13 @@ export default function TrainingPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Panel"
         title="Entrenamiento"
-        description="Prompt de sistema del bot. Los cambios se aplican al siguiente mensaje entrante, sin reiniciar."
+        description="Prompt de sistema del bot. Los cambios se aplican al siguiente mensaje entrante, sin reiniciar el proceso."
       />
-      <div className="p-6">
+      <PageBody>
         <TrainingEditor />
-      </div>
+      </PageBody>
     </>
   );
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 
 import { ConnectionsContent } from "./connections-content";
 
@@ -12,12 +12,13 @@ export default function ConnectionsPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Panel"
         title="Conexiones"
-        description="Estado de los servicios externos y control de la sesión de WhatsApp."
+        description="Sesión de WhatsApp, servicios externos y memoria conversacional en Redis."
       />
-      <div className="p-6">
+      <PageBody>
         <ConnectionsContent />
-      </div>
+      </PageBody>
     </>
   );
 }

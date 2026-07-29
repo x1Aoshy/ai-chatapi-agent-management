@@ -2,22 +2,22 @@ import type { Metadata } from "next";
 
 import { PageBody, PageHeader } from "@/components/page-header";
 
-import { SettingsForm } from "./settings-form";
+import { LogsViewer } from "./logs-viewer";
 
 export const metadata: Metadata = {
-  title: "Ajustes",
+  title: "Logs",
 };
 
-export default function SettingsPage() {
+export default function LogsPage() {
   return (
     <>
       <PageHeader
         eyebrow="Panel"
-        title="Ajustes"
-        description="Variables de entorno del bot y control del proceso que lo ejecuta."
+        title="Logs"
+        description="Salida de PM2 del proceso del bot: stdout y stderr combinados y ordenados por marca temporal."
       />
       <PageBody>
-        <SettingsForm />
+        <LogsViewer />
       </PageBody>
     </>
   );

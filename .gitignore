@@ -20,7 +20,15 @@ build/
 .vercel
 
 # Logs
-logs/
+#
+# Las reglas van ancladas a los directorios de ejecución reales. Un `logs/` sin
+# anclar casa con CUALQUIER carpeta llamada así a cualquier profundidad, y eso
+# se estaba tragando el código de la sección de logs del panel
+# (src/app/(app)/logs y src/app/api/logs): la página quedaba enlazada en el
+# menú pero nunca llegaba al repositorio.
+/logs/
+bot/logs/
+server/logs/
 *.log
 pm2.log
 

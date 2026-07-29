@@ -4,54 +4,108 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * AI Management — sistema de diseño
+ * AI Management — sistema de diseño "instrumento"
  *
- * Estilo Vercel/Linear: superficie casi negra, jerarquía por borde de 1px y no
- * por sombra, esquinas vivas, paleta monocromática. El verde es el único color
- * con carga semántica y se reserva para el estado "online".
+ * La interfaz es un panel de operación, no una web de producto: densa, de
+ * lectura rápida y sin adorno. Tres reglas sostienen el conjunto:
  *
- * La interfaz es dark-only: los tokens viven directamente en :root en lugar de
- * duplicarse en un bloque .dark, porque no hay tema claro que alternar.
+ *   1. La jerarquía la marca un trazo de 1px, nunca una sombra. No hay
+ *      elevación falsa; lo que separa dos superficies es una línea.
+ *   2. Las esquinas son vivas en todo el sistema. La única excepción es la
+ *      burbuja de usuario: al ser el único elemento redondo de la interfaz,
+ *      el ojo la encuentra sin buscarla.
+ *   3. El color es semántico. El verde significa "online" y nada más; ámbar
+ *      es degradación y rojo es fallo. Nada decorativo lleva color.
+ *
+ * Los dos temas comparten estructura: solo cambian los valores. El claro no
+ * es el oscuro invertido — usa un blanco de papel ligeramente cálido y una
+ * tinta que no llega al negro, porque el contraste puro cansa en una pantalla
+ * que se mira durante horas.
  */
+
+/* ---------------------------------------------------------------- Tema claro */
 :root {
   --radius: 0rem;
 
   /* Superficies */
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card: #0a0a0a;
-  --card-foreground: #ededed;
-  --popover: #0f0f0f;
-  --popover-foreground: #ededed;
+  --background: #fbfbfa;
+  --foreground: #16181a;
+  --card: #ffffff;
+  --card-foreground: #16181a;
+  --popover: #ffffff;
+  --popover-foreground: #16181a;
 
   /* Acciones */
-  --primary: #ededed;
-  --primary-foreground: #0a0a0a;
-  --secondary: #1a1a1a;
-  --secondary-foreground: #ededed;
-  --accent: #1a1a1a;
-  --accent-foreground: #ededed;
+  --primary: #16181a;
+  --primary-foreground: #fbfbfa;
+  --secondary: #f0f0ed;
+  --secondary-foreground: #16181a;
+  --accent: #eeeeea;
+  --accent-foreground: #16181a;
 
   /* Texto y superficies atenuadas */
-  --muted: #141414;
-  --muted-foreground: #8f8f8f;
+  --muted: #f4f4f1;
+  --muted-foreground: #6b6f73;
 
   /* Trazos */
-  --border: #1f1f1f;
-  --input: #1f1f1f;
-  --ring: #2e2e2e;
+  --border: #e4e4e0;
+  --border-strong: #d0d0cb;
+  --input: #d8d8d3;
+  --ring: #16181a;
 
-  /*
-   * Estados. El verde marca "online" y nada más.
-   * Rojo y ámbar existen porque un panel operativo tiene que poder distinguir
-   * un fallo de una degradación; se usan solo en esos casos, nunca decorativos.
-   * "offline" es gris a propósito: ausencia de señal, no error.
-   */
+  /* Estados */
+  --online: #15803d;
+  --offline: #a1a1aa;
+  --warning: #b45309;
+  --destructive: #c02730;
+  --destructive-foreground: #ffffff;
+
+  /* Texturas: la rejilla y el rayado se calculan a partir de estos tonos. */
+  --grid-line: #ebebe7;
+  --hatch-line: #e6e6e2;
+
+  /* Cristal de las barras fijas. */
+  --glass: rgb(251 251 250 / 0.72);
+
+  color-scheme: light;
+}
+
+/* --------------------------------------------------------------- Tema oscuro */
+.dark {
+  --background: #08090a;
+  --foreground: #ededed;
+  --card: #0c0d0e;
+  --card-foreground: #ededed;
+  --popover: #101112;
+  --popover-foreground: #ededed;
+
+  --primary: #ededed;
+  --primary-foreground: #08090a;
+  --secondary: #17191a;
+  --secondary-foreground: #ededed;
+  --accent: #17191a;
+  --accent-foreground: #ededed;
+
+  --muted: #121314;
+  --muted-foreground: #8b8d8f;
+
+  --border: #1e2022;
+  --border-strong: #2c2f31;
+  --input: #26292b;
+  --ring: #6b7073;
+
   --online: #22c55e;
   --offline: #4d4d4d;
   --warning: #d9a441;
   --destructive: #e5484d;
   --destructive-foreground: #ededed;
+
+  --grid-line: #141516;
+  --hatch-line: #171819;
+
+  --glass: rgb(8 9 10 / 0.72);
+
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -72,29 +126,64 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-online: var(--online);
   --color-offline: var(--offline);
   --color-warning: var(--warning);
+  --color-glass: var(--glass);
 
   --font-sans: var(--font-inter);
-  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", monospace;
+  --font-mono: var(--font-mono-panel), ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Esquinas vivas en todos los tamaños: el sistema no usa radio. */
   --radius-sm: 0px;
   --radius-md: 0px;
   --radius-lg: 0px;
   --radius-xl: 0px;
+
+  /* Una sola curva de easing en todo el panel: movimiento seco, sin rebote. */
+  --ease-panel: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-sweep: sweep 1.4s var(--ease-panel) infinite;
+  --animate-blink: blink 1.6s steps(2, start) infinite;
+  --animate-rise: rise 0.28s var(--ease-panel) both;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @layer base {
   * {
     @apply border-border;
-  }
-
-  html {
-    color-scheme: dark;
   }
 
   body {
@@ -110,8 +199,8 @@
   }
 
   ::selection {
-    background: #2e2e2e;
-    color: #ffffff;
+    background: var(--foreground);
+    color: var(--background);
   }
 
   /* Scrollbars discretas, en la misma paleta que los bordes. */
@@ -123,20 +212,84 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #262626;
+    background: var(--border-strong);
     border: 3px solid var(--background);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a3a3a;
+    background: var(--muted-foreground);
+  }
+
+  /*
+   * Quien haya pedido menos movimiento al sistema no debería ver ninguno: el
+   * panel expande la barra lateral y desliza indicadores, y todo eso sobra.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * Micro-etiqueta. Mono, versalitas y mucho tracking: es el recurso que da
+   * carácter técnico a la interfaz sin necesidad de color ni iconos.
+   */
+  .eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  /*
+   * Marcas de esquina. Dos ángulos opuestos que encuadran un panel sin
+   * cerrarlo. Es la firma visual del sistema y se reserva para el bloque
+   * principal de cada página; repetida en todo pierde el efecto.
+   */
+  .ticked {
+    @apply relative;
+  }
+  .ticked::before,
+  .ticked::after {
+    content: "";
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    pointer-events: none;
+    color: var(--border-strong);
+  }
+  .ticked::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid currentColor;
+    border-left: 1px solid currentColor;
+  }
+  .ticked::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1px solid currentColor;
+    border-right: 1px solid currentColor;
   }
 }
 
 @layer utilities {
-  /* Rejilla de fondo sutil, al estilo de las cabeceras de Vercel. */
+  /* Rejilla de fondo: da profundidad a las zonas vacías sin meter color. */
   .bg-grid {
-    background-image: linear-gradient(to right, #141414 1px, transparent 1px),
-      linear-gradient(to bottom, #141414 1px, transparent 1px);
+    background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
     background-size: 40px 40px;
+  }
+
+  /* Rayado diagonal para los huecos: "aquí no hay datos", no "aquí falta algo". */
+  .bg-hatch {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--hatch-line) 0 1px,
+      transparent 1px 7px
+    );
   }
 
   /*
@@ -144,6 +297,11 @@
    * da al indicador de estado un peso visual que un círculo de 6px no alcanza.
    */
   .dot-online-glow {
-    box-shadow: 0 0 0 3px rgb(34 197 94 / 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--online) 18%, transparent);
+  }
+
+  /* Números de panel: ancho fijo para que no bailen al refrescarse. */
+  .num {
+    @apply font-mono tabular-nums tracking-tight;
   }
 }

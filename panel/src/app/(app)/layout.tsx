@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { Nav } from "@/components/nav";
+import { AppShell } from "@/components/app-shell";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -22,10 +22,5 @@ export default async function AppLayout({
     redirect("/login");
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Nav email={user.email} />
-      <main className="flex-1 overflow-y-auto">{children}</main>
-    </div>
-  );
+  return <AppShell email={user.email}>{children}</AppShell>;
 }
