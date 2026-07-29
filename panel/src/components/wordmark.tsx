@@ -28,6 +28,26 @@ export function Wordmark({
 }
 
 /**
+ * Marca reducida para el carril plegado.
+ *
+ * A 64px no cabe el logotipo entero, y ese hueco es justo donde antes vivía el
+ * cuadro de 16px que se leía como una imagen rota. La solución es la misma
+ * marca en corto: sigue siendo tipografía, no un icono.
+ */
+export function Monogram({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "font-display text-sm font-bold uppercase leading-none tracking-[0.08em] text-foreground",
+        className
+      )}
+    >
+      x1
+    </span>
+  );
+}
+
+/**
  * Firma del autor. Discreta a propósito: se lee si la buscas, no compite con
  * la interfaz.
  */

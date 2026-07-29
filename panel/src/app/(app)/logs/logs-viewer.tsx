@@ -188,7 +188,9 @@ export function LogsViewer() {
           <div
             ref={scrollRef}
             onScroll={onScroll}
-            className="h-[32rem] overflow-y-auto bg-[#080808] p-4 font-mono text-xs leading-relaxed"
+            // El fondo sale de los tokens y no de un hex fijo: con tema claro, un
+            // negro incrustado dejaba el visor como un agujero en la página.
+            className="h-[32rem] overflow-y-auto bg-background p-4 font-mono text-xs leading-relaxed"
           >
             {lines.length === 0 ? (
               <p className="text-muted-foreground">

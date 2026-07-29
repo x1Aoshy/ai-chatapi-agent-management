@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, ShieldAlert } from "lucide-react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,7 +41,8 @@ export function LoginForm() {
     // protegida. Se fuerza que sea una ruta interna para evitar un open
     // redirect si alguien manipula el parámetro.
     const next = searchParams.get("next");
-    const destination = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+    const destination =
+      next?.startsWith("/") && !next.startsWith("//") ? next : "/";
 
     // refresh() re-ejecuta los Server Components con la cookie ya establecida.
     router.replace(destination);
@@ -50,35 +50,41 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5 border border-border p-6">
-      <div className="space-y-1">
-        <h1 className="text-sm font-medium">Iniciar sesión</h1>
-        <p className="text-xs text-muted-foreground">
-          Acceso restringido a operadores del bot.
-        </p>
-      </div>
-
+    <form
+      onSubmit={onSubmit}
+      className="ticked space-y-5 border border-border bg-card p-6"
+    >
       {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <p
+          role="alert"
+          className="flex items-center gap-2.5 border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-xs text-destructive"
+        >
+          <ShieldAlert className="size-4 shrink-0" />
+          {error}
+        </p>
       ) : null}
 
       <div className="space-y-2">
-        <Label htmlFor="email">Correo</Label>
+        <Label htmlFor="email" className="eyebrow">
+          Correo
+        </Label>
         <Input
           id="email"
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="email"
+          autoFocus
           required
           disabled={pending}
+          className="font-mono text-xs"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password" className="eyebrow">
+          Contraseña
+        </Label>
         <Input
           id="password"
           type="password"
@@ -87,11 +93,16 @@ export function LoginForm() {
           autoComplete="current-password"
           required
           disabled={pending}
+          className="font-mono text-xs"
         />
       </div>
 
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+        {pending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <ArrowRight className="size-4" />
+        )}
         {pending ? "Entrando…" : "Entrar"}
       </Button>
     </form>

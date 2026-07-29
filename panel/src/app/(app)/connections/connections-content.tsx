@@ -18,8 +18,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAgentData } from "@/hooks/use-agent-data";
+import { useHealth } from "@/hooks/use-health";
 import { cn } from "@/lib/utils";
-import type { ConversationsResponse, HealthResponse } from "@/lib/types";
+import type { ConversationsResponse } from "@/lib/types";
 
 import { WhatsAppCard } from "./whatsapp-card";
 
@@ -31,7 +32,9 @@ function formatTtl(seconds: number) {
 }
 
 export function ConnectionsContent() {
-  const health = useAgentData<HealthResponse>("/api/health", { pollMs: 15_000 });
+  // El estado sale del sondeo compartido del shell: pedirlo otra vez aquí
+  // duplicaba una petición idéntica cada 15s, con su verificación de sesión.
+  const health = useHealth();
   const conversations = useAgentData<ConversationsResponse>(
     "/api/redis/conversations",
     { pollMs: 30_000 }

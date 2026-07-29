@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-interface AgentDataState<T> {
+export interface AgentDataState<T> {
   data: T | null;
   error: string | null;
   /** Solo la primera carga, cuando aún no hay nada que enseñar. */
@@ -17,7 +17,21 @@ interface AgentDataState<T> {
   refreshing: boolean;
   /** Código HTTP del último fallo; 503 significa "panel sin configurar". */
   status: number | null;
+  /** `Date.now()` de la última respuesta correcta. */
+  updatedAt: number | null;
 }
+
+export interface AgentData<T> extends AgentDataState<T> {
+  refresh: () => void;
+}
+
+const INITIAL_STATE = {
+  data: null,
+  error: null,
+  refreshing: false,
+  status: null,
+  updatedAt: null,
+} as const;
 
 /**
  * Lee un endpoint del panel, con refresco por sondeo opcional.
@@ -25,23 +39,26 @@ interface AgentDataState<T> {
  * Se usa sondeo en lugar de SSE/WebSocket a propósito: para el volumen de este
  * bot, un GET cada pocos segundos es suficiente y evita mantener conexiones
  * abiertas contra un servidor que va justo de memoria.
+ *
+ * Un fallo puntual conserva los datos anteriores en lugar de borrarlos. Un
+ * panel de operación que se vacía porque un sondeo llegó tarde es peor que uno
+ * que muestra el último estado conocido junto al aviso de que está caducado;
+ * quien mira la pantalla necesita saber qué pasaba hace 15 segundos.
  */
 export function useAgentData<T>(
   path: string,
   { pollMs, enabled = true }: { pollMs?: number; enabled?: boolean } = {}
-) {
+): AgentData<T> {
   const [state, setState] = useState<AgentDataState<T>>({
-    data: null,
-    error: null,
+    ...INITIAL_STATE,
     loading: enabled,
-    refreshing: false,
-    status: null,
   });
 
   // Se incrementa para forzar una relectura desde fuera del efecto.
   const [reloadToken, setReloadToken] = useState(0);
 
   const refresh = useCallback(() => {
+    setState((current) => ({ ...current, refreshing: true }));
     setReloadToken((token) => token + 1);
   }, []);
 
@@ -83,13 +100,16 @@ export function useAgentData<T>(
         if (!active) return;
 
         if (!response.ok) {
-          setState({
-            data: null,
+          setState((current) => ({
+            ...current,
+            // 503 es "panel sin configurar": ahí los datos previos no existen
+            // y mantenerlos solo confundiría.
+            data: response.status === 503 ? null : current.data,
             error: body?.error ?? `Error ${response.status}`,
             loading: false,
             refreshing: false,
             status: response.status,
-          });
+          }));
 
           /*
            * 503 significa que el panel no tiene configurado AGENT_API_URL o
@@ -107,6 +127,7 @@ export function useAgentData<T>(
           loading: false,
           refreshing: false,
           status: 200,
+          updatedAt: Date.now(),
         });
       } catch (error) {
         // El abort al desmontar entra por aquí y no es un fallo que mostrar.
@@ -114,13 +135,13 @@ export function useAgentData<T>(
           return;
         }
 
-        setState({
-          data: null,
+        setState((current) => ({
+          ...current,
           error: error instanceof Error ? error.message : "Fallo de red.",
           loading: false,
           refreshing: false,
           status: null,
-        });
+        }));
       } finally {
         inFlight = false;
       }

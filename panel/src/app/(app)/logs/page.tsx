@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 
 import { LogsViewer } from "./logs-viewer";
 
@@ -12,12 +12,13 @@ export default function LogsPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Panel"
         title="Logs"
-        description="Salida de PM2 del proceso ai-bot."
+        description="Salida de PM2 del proceso ai-bot: stdout y stderr combinados."
       />
-      <div className="p-4 sm:p-6">
+      <PageBody>
         <LogsViewer />
-      </div>
+      </PageBody>
     </>
   );
 }

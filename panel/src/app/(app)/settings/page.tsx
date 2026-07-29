@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader } from "@/components/page-header";
 
 import { SettingsForm } from "./settings-form";
 
@@ -12,12 +12,13 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Panel"
         title="Ajustes"
-        description="Variables de entorno del bot y control del proceso."
+        description="Variables de entorno del bot y control del proceso que lo ejecuta."
       />
-      <div className="p-4 sm:p-6">
+      <PageBody>
         <SettingsForm />
-      </div>
+      </PageBody>
     </>
   );
 }
