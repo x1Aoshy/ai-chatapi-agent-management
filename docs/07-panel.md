@@ -27,7 +27,7 @@ Panel de administración web para operar el bot sin entrar por SSH.
 |------|-----------|
 | `/login` | Autenticación con Supabase |
 | `/` | Dashboard: estado del bot, WhatsApp, estadísticas, gráfica de mensajes |
-| `/training` | Editor de `instrucciones.txt` con historial de versiones |
+| `/training` | Instrucciones + conocimiento, en pestañas (ver `09-conocimiento.md`) |
 | `/connections` | Estado y control de DeepSeek, Chatwoot, WhatsApp, Redis |
 | `/logs` | Visor de conversaciones en tiempo real |
 | `/settings` | Variables de entorno, modelo IA, TTL de memoria en Redis |
@@ -70,8 +70,11 @@ Navegador → Vercel (API Routes) → Middleware :5001 → {archivos, PM2, Redis
 | `PUT` | `/api/env` | Actualizar variables de entorno |
 | `POST` | `/api/restart` | `pm2 restart ai-bot --update-env` |
 | `GET` | `/api/logs` | Últimas N líneas de PM2 |
+| `GET` | `/api/logs/stream` | Logs en tiempo real (SSE) |
 | `GET` | `/api/whatsapp/state` | Proxy a `connectionState` de Evolution |
-| `POST` | `/api/whatsapp/connect` | Generar QR |
+| `GET` | `/api/whatsapp/qr` | Generar QR |
+| `POST` | `/api/whatsapp/connect` | Igual que el anterior (compatibilidad) |
+| `POST` | `/api/whatsapp/logout` | Cerrar la sesión de WhatsApp |
 | `GET` | `/api/redis/conversations` | Listar `chat_history:*` |
 | `DELETE` | `/api/redis/conversations/:id` | Borrar la memoria de una conversación |
 
@@ -119,8 +122,14 @@ argumentos fijos, nunca componiendo una cadena de shell con entrada del usuario.
 Un proceso Node adicional necesita sitio: revisar `free -h` y considerar swap antes
 de desplegar el middleware.
 
-**Logs en tiempo real.** `/logs` con polling cada pocos segundos es más simple y
-suficiente para este volumen. SSE o WebSocket solo si el polling se queda corto.
+**Logs en tiempo real.** Implementado con Server-Sent Events: el middleware
+sigue los archivos de PM2 y empuja cada línea nueva. El navegador se conecta a
+la route handler del panel con EventSource —que no admite cabeceras propias, y
+por eso la API key se añade del lado servidor y nunca llega al cliente.
+
+Vercel corta las funciones al llegar a `maxDuration`, así que la conexión se
+reabre cada pocos minutos. El cliente reconecta solo y pide historial únicamente
+en la primera conexión, para que un corte no reinyecte líneas ya mostradas.
 
 ---
 

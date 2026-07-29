@@ -70,9 +70,15 @@ El bot detecta ese marcador en la respuesta y escala.
 Ambas rutas hacen exactamente lo mismo a continuación:
 
 1. `POST` del mensaje *"Te comunico con uno de nuestros asesores. Dame un momento."*
-2. `PATCH` de la conversación a `status: "open"` → sale de la cola del bot y entra
-   en la bandeja de los agentes humanos.
-3. `DEL chat_history:{conversationId}` → el agente humano empieza sin contexto de IA.
+2. `PATCH` de la conversación a `status: "open"` → sale de la cola del bot.
+3. `POST /assignments` → se asigna al agente o equipo de
+   `CHATWOOT_HANDOFF_ASSIGNEE_ID` / `CHATWOOT_HANDOFF_TEAM_ID`.
+4. `DEL chat_history:{conversationId}` → el agente humano empieza sin contexto de IA.
+
+El paso 3 no es opcional en la práctica: sin él la conversación queda en "Sin
+asignar", que no es la vista que mira un agente por defecto. Un fallo ahí se
+registra pero no revierte el paso 2 — que el bot deje de responder a quien pidió
+un humano importa más que quién la tenga asignada.
 
 ---
 
@@ -119,5 +125,15 @@ nunca expira a media charla; expira 24 h después del último mensaje.
 | 8 | Redis caído | El bot responde, pero se presenta en cada mensaje |
 | 9 | Modelo inválido o cuota agotada | Error en `pm2 logs`; el cliente no recibe respuesta |
 | 12–13 | Token de Chatwoot desincronizado | `401` en `pm2 logs`; la IA responde pero nada llega |
+| 12–14 | Bot sin ruta hacia Chatwoot | La IA responde en los logs y nada llega ni se traspasa |
 
-El diagnóstico detallado de cada uno está en `06-troubleshooting.md`.
+Los pasos 1–11 y los 12–14 recorren caminos de red **opuestos**: los primeros
+llegan al bot, los últimos salen de él. Un fallo de salida no aparece en los
+logs de entrada, así que el bot parece sano mientras ningún cliente recibe nada.
+
+```bash
+cd /home/ubuntu/api && node diagnostico.mjs
+```
+
+Prueba cada salto por separado y señala el que falla. El diagnóstico detallado
+de cada caso está en `06-troubleshooting.md`.

@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 
-import { Mark } from "@/components/mark";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Signature, Wordmark } from "@/components/wordmark";
 
 import { LoginForm } from "./login-form";
 
@@ -24,12 +24,7 @@ export default function LoginPage() {
       />
 
       <header className="relative flex items-center justify-between px-5 py-5 sm:px-8">
-        <span className="flex items-center gap-2.5">
-          <Mark />
-          <span className="text-sm font-medium tracking-tight">
-            AI Management
-          </span>
-        </span>
+        <Wordmark />
         <ThemeToggle />
       </header>
 
@@ -42,13 +37,15 @@ export default function LoginPage() {
             </h1>
             <p className="text-xs leading-relaxed text-muted-foreground">
               Desde aquí se gobierna el asistente de WhatsApp: instrucciones,
-              conexiones, entorno y proceso.
+              conocimiento, conexiones, entorno y proceso.
             </p>
           </div>
 
           <Suspense>
             <LoginForm />
           </Suspense>
+
+          <Signature className="mt-6 text-center" />
         </div>
       </main>
 

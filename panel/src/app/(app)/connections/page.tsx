@@ -14,7 +14,7 @@ export default function ConnectionsPage() {
       <PageHeader
         eyebrow="Panel"
         title="Conexiones"
-        description="Sesión de WhatsApp, servicios externos y memoria conversacional en Redis."
+        description="Estado de los servicios externos y control de la sesión de WhatsApp."
       />
       <PageBody>
         <ConnectionsContent />

@@ -14,7 +14,7 @@ export default function LogsPage() {
       <PageHeader
         eyebrow="Panel"
         title="Logs"
-        description="Salida de PM2 del proceso del bot: stdout y stderr combinados y ordenados por marca temporal."
+        description="Salida de PM2 del proceso ai-bot: stdout y stderr combinados."
       />
       <PageBody>
         <LogsViewer />

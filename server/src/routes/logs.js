@@ -1,7 +1,9 @@
 import { Router } from 'express';
 
 import { tailFile } from '../lib/files.js';
-import { getLogPaths } from '../lib/pm2.js';
+import { followFile } from '../lib/log-stream.js';
+import { flushLogs, getLogPaths } from '../lib/pm2.js';
+import { rateLimit } from '../auth.js';
 
 export const logsRouter = Router();
 
@@ -21,19 +23,36 @@ function parseLine(raw, stream) {
     : { stream, timestamp: parsed.toISOString(), message: match[2] };
 }
 
-logsRouter.get('/logs', async (req, res, next) => {
-  const requested = Number(req.query.lines ?? 100);
-  const lines = Number.isFinite(requested)
-    ? Math.min(Math.max(Math.trunc(requested), 1), MAX_LINES)
-    : 100;
+function clampLines(value, fallback = 100) {
+  const requested = Number(value ?? fallback);
+  return Number.isFinite(requested)
+    ? Math.min(Math.max(Math.trunc(requested), 0), MAX_LINES)
+    : fallback;
+}
 
+/**
+ * Traduce un fallo de lectura a un mensaje accionable.
+ *
+ * EACCES es especialmente confuso: el archivo existe y la ruta es correcta,
+ * pero el middleware corre con otro usuario. Sin nombrarlo, el operador acaba
+ * buscando el problema donde no está.
+ */
+function describeReadError(error, filePath) {
+  if (error.code === 'EACCES') {
+    return `Sin permiso para leer ${filePath}. El middleware corre con un usuario que no puede acceder a los logs del bot.`;
+  }
+  return `No se pudo leer ${filePath}: ${error.message}`;
+}
+
+logsRouter.get('/logs', async (req, res, next) => {
+  const lines = clampLines(req.query.lines) || 100;
   const onlyErrors = req.query.stream === 'err';
 
   try {
     const paths = await getLogPaths();
 
-    if (!paths.out && !paths.err) {
-      return res.status(404).json({ error: 'PM2 no reporta archivos de log para el bot.' });
+    if (paths.error) {
+      return res.status(404).json({ error: paths.error });
     }
 
     const [out, err] = await Promise.all([
@@ -58,6 +77,116 @@ logsRouter.get('/logs', async (req, res, next) => {
 
     res.json({ lines: merged.slice(-lines) });
   } catch (error) {
+    if (error.code === 'EACCES') {
+      return res.status(403).json({ error: describeReadError(error, error.path ?? 'el log') });
+    }
     next(error);
   }
+});
+
+/**
+ * Vacía los logs del bot.
+ *
+ * Limitado con dureza: no se puede deshacer, y quien lo invoque por error
+ * destruye el historial que hace falta justo para diagnosticar un incidente.
+ */
+logsRouter.post(
+  '/logs/clear',
+  rateLimit({ windowMs: 60_000, max: 3 }),
+  async (_req, res, next) => {
+    try {
+      await flushLogs();
+      console.warn('[logs] vaciados desde el panel');
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * Stream de logs en tiempo real (Server-Sent Events).
+ *
+ * Sustituye al sondeo: el navegador abre una conexión y el servidor empuja
+ * cada línea nueva en cuanto aparece, con ~1s de latencia en lugar de esperar
+ * al siguiente intervalo.
+ */
+logsRouter.get('/logs/stream', async (req, res) => {
+  const backlog = clampLines(req.query.lines, 100);
+  const onlyErrors = req.query.stream === 'err';
+
+  const paths = await getLogPaths();
+
+  if (paths.error) {
+    return res.status(404).json({ error: paths.error });
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    // Sin esto, un Nginx intermedio almacena la respuesta y el "tiempo real"
+    // se convierte en ráfagas cada varios segundos.
+    'X-Accel-Buffering': 'no',
+  });
+
+  function send(event, payload) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+  }
+
+  // Historial inicial, para que la pantalla no arranque vacía.
+  if (backlog > 0) {
+    try {
+      const [out, err] = await Promise.all([
+        onlyErrors || !paths.out ? [] : tailFile(paths.out, backlog),
+        paths.err ? tailFile(paths.err, backlog) : [],
+      ]);
+
+      const merged = [
+        ...out.map((raw) => parseLine(raw, 'out')),
+        ...err.map((raw) => parseLine(raw, 'err')),
+      ];
+
+      if (merged.length > 0 && merged.every((line) => line.timestamp)) {
+        merged.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      }
+
+      send('backlog', { lines: merged.slice(-backlog) });
+    } catch (error) {
+      send('error', { message: describeReadError(error, 'el log') });
+    }
+  } else {
+    send('backlog', { lines: [] });
+  }
+
+  const stops = [];
+
+  if (!onlyErrors && paths.out) {
+    stops.push(
+      followFile(paths.out, {
+        onLines: (raw) => send('lines', { lines: raw.map((l) => parseLine(l, 'out')) }),
+      })
+    );
+  }
+
+  if (paths.err) {
+    stops.push(
+      followFile(paths.err, {
+        onLines: (raw) => send('lines', { lines: raw.map((l) => parseLine(l, 'err')) }),
+      })
+    );
+  }
+
+  /*
+   * Latido periódico. Sin tráfico, un proxy o un balanceador dan la conexión
+   * por muerta y la cierran; un comentario SSE la mantiene viva sin ensuciar
+   * el flujo de datos.
+   */
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), 15_000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    stops.forEach((stop) => stop());
+    res.end();
+  });
 });

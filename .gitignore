@@ -19,16 +19,16 @@ out/
 build/
 .vercel
 
+# Copia de trabajo del prompt que se monta en el contenedor del bot. No se
+# versiona: la fuente de verdad es bot/instrucciones.txt, y tener dos copias
+# bajo control de versiones garantiza que acaben divergiendo.
+/bot/data/
+
 # Logs
-#
-# Las reglas van ancladas a los directorios de ejecución reales. Un `logs/` sin
-# anclar casa con CUALQUIER carpeta llamada así a cualquier profundidad, y eso
-# se estaba tragando el código de la sección de logs del panel
-# (src/app/(app)/logs y src/app/api/logs): la página quedaba enlazada en el
-# menú pero nunca llegaba al repositorio.
+# Anclado a la raíz a propósito: sin la barra inicial, este patrón coincide con
+# CUALQUIER carpeta llamada "logs" a cualquier profundidad, y llegó a excluir
+# del repositorio las rutas del panel (app/(app)/logs y app/api/logs) sin avisar.
 /logs/
-bot/logs/
-server/logs/
 *.log
 pm2.log
 

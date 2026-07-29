@@ -1,15 +1,191 @@
 # 06 — Problemas conocidos y soluciones
 
+## Empieza por aquí
+
+```bash
+cd /home/ubuntu/api && node diagnostico.mjs
+```
+
+Prueba los cuatro saltos que recorre una respuesta —bot → Chatwoot → Evolution →
+WhatsApp— por separado y dice cuál falla. Está pensado justo para los casos en
+que los logs del bot parecen normales pero el cliente no recibe nada.
+
+---
+
 ## Tabla de referencia rápida
 
 | Problema | Causa | Solución |
 |----------|-------|----------|
+| `status: 0` con `messageStubParameters: ["463"]` | Time-lock de WhatsApp, no es este sistema | Esperar; no reintentar; `groupsIgnore: true` |
+| Recibe mensajes pero no responde por WhatsApp | Algún salto de salida roto | `node diagnostico.mjs` |
+| Chatwoot no entrega nada a WhatsApp (ni el bot ni los agentes) | La `url` de Evolution apunta a la IP pública de EC2 | Cambiarla a `http://chatwoot-rails-1:3000` |
 | Error 401 al enviar mensajes | Token del bot desincronizado | Extraer token fresco con `rails runner "puts AgentBot.first.access_token.token"` y actualizar `.env` |
 | *"Conversation marked open due to error with agent bot"* | Webhook URL incorrecta o ruta cambiada | Verificar que `outgoing_url` del bot coincida con la ruta de `index.js` |
 | WhatsApp desconectado (`state: close`) | Sesión expirada o servidor reiniciado | Generar nuevo QR vía Evolution API |
 | Bot no recibe mensajes nuevos | `conversationPending: false` en Evolution API | Actualizar a `true` vía `POST /chatwoot/set/ventas` |
 | Docker cambia IP interna al reiniciar | Docker recrea redes virtuales | Verificar con `docker exec chatwoot-rails-1 ip route show \| grep default` |
 | DeepSeek rechaza el modelo | La API cambió nombres de modelos | Actualizar `DEEPSEEK_MODEL` en `.env` (actualmente `deepseek-v4-flash`) |
+
+---
+
+## Error 463: WhatsApp acepta el mensaje y un segundo después lo marca en error
+
+**Síntoma.** Entra todo con normalidad y no sale nada. En los logs de Evolution,
+por cada envío:
+
+```
+"update": { "status": 0, "messageStubParameters": ["463"] }
+```
+
+El mensaje nace en `status: 1` (pendiente) y cae a `status: 0` (error) al
+segundo siguiente. Falla igual desde Chatwoot que desde la API directa de
+Evolution, con cualquier destinatario, y con una sesión recién vinculada.
+
+**Causa. No es este sistema.** `463` es `NackCallerReachoutTimelocked`: el
+*reach-out time-lock* de WhatsApp, un bloqueo temporal por tiempo que se aplica
+a las cuentas que escriben a gente que WhatsApp considera desconocida.
+
+Baileys —la librería que Evolution usa por dentro— no incluye los campos
+`tctoken` y `cstoken` en los mensajes salientes. Esos campos son los que
+acreditan "este contacto me escribió primero". Sin ellos, el servidor cuenta
+**cada** envío como abordar a un desconocido, acumula, y acaba bloqueando la
+cuenta para enviar. Recibir no cuenta como abordar a nadie: por eso entra todo
+y no sale nada.
+
+**Cómo reconocerlo.** Ningún cambio de configuración lo arregla, y eso mismo es
+el diagnóstico. Fallan todos los destinatarios (el bloqueo es del emisor);
+re-vincular no cambia nada (es de la cuenta, no de la sesión); no hay ningún
+aviso en la app (no es un baneo); y a los **grupos** sí llegan los mensajes,
+porque el time-lock solo aplica a chats privados.
+
+**Qué hacer.**
+
+1. **Dejar de enviar.** Cada intento fallido realimenta el bloqueo. Es lo peor
+   que se puede hacer mientras dura.
+2. **Esperar.** Se libera solo. Al hacerlo, WhatsApp entrega de golpe todo lo
+   que quedó en cola — conviene tenerlo previsto, porque la cascada es visible
+   para los destinatarios.
+3. **Bajar el ritmo automático** antes de que vuelva a ocurrir (ver abajo).
+
+**Cómo evitar que se repita.**
+
+Lo primero, que el bot no conteste en grupos. Es tráfico automático que no
+aporta nada, gasta cuota del modelo y alimenta el bloqueo:
+
+```bash
+EK=$(grep '^EVOLUTION_API_KEY' /home/ubuntu/aimanagement/server/.env | cut -d= -f2-)
+
+curl -s http://localhost:8080/settings/find/ventas -H "apikey: $EK" \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const c=JSON.parse(s);
+      for (const k of Object.keys(c)) if (c[k]===null) delete c[k];
+      delete c.id; delete c.instanceId; delete c.createdAt; delete c.updatedAt;
+      c.groupsIgnore = true;
+      console.log(JSON.stringify(c));
+    })' > /tmp/set.json
+
+curl -s -X POST http://localhost:8080/settings/set/ventas -H "apikey: $EK" \
+  -H 'Content-Type: application/json' -d @/tmp/set.json; echo
+```
+
+`POST /settings/set` reemplaza el objeto entero, igual que `/chatwoot/set`: hay
+que leer, limpiar y reenviar. Los `null` que devuelve `find` no pasan su propia
+validación.
+
+Además ayuda que el número se comporte como un número normal: contactos
+guardados, conversaciones reales desde el teléfono, y nada de ráfagas de
+pruebas justo después de salir de un bloqueo.
+
+**La solución de fondo.** Hay trabajo en curso en Baileys para añadir `tctoken`
+y `cstoken` ([investigación](https://github.com/WhiskeySockets/Baileys/issues/2441),
+[caso abierto](https://github.com/WhiskeySockets/Baileys/issues/2698)); cuando
+Evolution publique una versión con eso, desaparece. La alternativa definitiva es
+la **API oficial de WhatsApp Cloud**, que Chatwoot soporta como canal nativo:
+se paga por conversación, pero no tiene límites de este tipo porque es la vía
+autorizada, y no obliga a tocar el bot, el panel ni el RAG — solo cambia el
+buzón.
+
+> **Nota de campo.** Este diagnóstico costó una noche entera de descartes.
+> Antes de llegar aquí se revisaron y corrigieron la URL de Chatwoot en
+> Evolution, `conversationPending`, la conexión al PostgreSQL de Chatwoot, la
+> carga de `instrucciones.txt` y la asignación en el traspaso. Todo eso estaba
+> realmente mal y su arreglo sigue siendo válido, pero **ninguna de esas cosas
+> era la que impedía los envíos**. La señal que lo separa todo es que el fallo
+> persiste con la API directa de Evolution: si `POST /message/sendText` también
+> devuelve 463, este sistema está descartado y el problema es de la cuenta.
+
+---
+
+## El bot recibe los mensajes pero no responde por WhatsApp
+
+**Síntoma.** En `pm2 logs ai-bot` se ve todo el ciclo: `[📥 CLIENTE]`, el
+contexto, `[🤖 MARCOS]` con la respuesta generada. Pero el cliente no recibe
+nada. Y si escribe "agente", tampoco pasa nada.
+
+**Por qué las dos cosas a la vez.** Porque son la misma cosa. El bot usa **dos
+caminos distintos** y solo uno aparece en sus logs:
+
+```
+entrada:  Chatwoot (Sidekiq)  ──POST /webhook──▶  bot
+salida:   bot  ──POST /api/v1/...──▶  Chatwoot  ──▶  Evolution  ──▶  WhatsApp
+```
+
+Sidekiq llama al bot: por eso los mensajes entran. El bot llama a la API de
+Chatwoot: responder y traspasar a un agente **son las dos llamadas de salida**,
+con la misma URL y el mismo token. Si la salida está rota, se caen justo esas
+dos y nada más — que es exactamente el síntoma.
+
+**Diagnóstico.**
+
+```bash
+cd /home/ubuntu/api
+node diagnostico.mjs
+```
+
+Sin argumentos comprueba lo que puede. Para la prueba decisiva —un envío real—
+hace falta una conversación; la busca en Redis, y si no la encuentra:
+
+```bash
+node diagnostico.mjs --conversation 42     # el id sale de la URL en Chatwoot
+```
+
+Ese envío escribe una **nota privada**: mismo endpoint, mismo token y misma
+conversación que un mensaje normal, pero el cliente no la ve. Es la única forma
+de validar el token del AgentBot sin escribirle a nadie, porque Chatwoot lo
+valida contra la inbox de la conversación y no existe un endpoint de "¿este
+token sirve?".
+
+**Las cuatro causas que separa.**
+
+| Veredicto | Qué pasó | Arreglo |
+|-----------|----------|---------|
+| `CHATWOOT_BASE_URL` apunta a una dirección muerta | Docker recreó sus redes y cambió la gateway | El script dice qué URL sí responde: ponla en el `.env` y `pm2 restart ai-bot --update-env` |
+| Chatwoot rechaza el token | `CHATWOOT_ACCESS_TOKEN` desincronizado | Ver *Error 401* más abajo |
+| Sesión de WhatsApp caída | `state` distinto de `open` | Volver a vincular desde el panel |
+| Chatwoot acepta pero no llega | El salto Chatwoot → Evolution | Ver abajo |
+
+**Si el veredicto es el cuarto.** Abre la conversación en Chatwoot. Si las
+respuestas del bot **están ahí** pero no llegaron al teléfono, el bot hizo su
+trabajo y el fallo está en la entrega de Chatwoot a Evolution. Lo más habitual
+es que se recreara la instancia de Evolution y ahora exista un buzón nuevo:
+
+```bash
+# Relanza el diagnóstico con un token de usuario para ver los buzones
+CHATWOOT_USER_TOKEN=<token de Perfil → Access Token> node diagnostico.mjs
+```
+
+Dos buzones de tipo API es la firma de ese caso: los mensajes entran por el
+nuevo y el AgentBot sigue colgado del viejo.
+
+**Prevención.** El bot ahora comprueba la salida al arrancar. En `pm2 logs
+ai-bot`, tras `📄 instrucciones.txt cargado`, debe salir:
+
+```
+🔌 Chatwoot alcanzable en http://172.17.0.1:3000 (HTTP 200)
+```
+
+Si en su lugar sale `🚨 NO se alcanza Chatwoot en …`, el problema está
+identificado antes de que ningún cliente se quede sin respuesta.
 
 ---
 
@@ -116,6 +292,128 @@ antes de reintentar. **Cierra el puerto 3333 en el Security Group al terminar.**
 
 ---
 
+## El bot ignora sus reglas: habla de otros temas o dice que es DeepSeek
+
+**Síntoma.** Marcos responde sobre fútbol, política o cualquier cosa; acepta que
+un cliente le cambie el nombre; revela que es DeepSeek; usa markdown y respuestas
+largas. Nada de `instrucciones.txt` se aplica.
+
+**Causa.** No está leyendo el archivo, y cae a un prompt de reserva de una sola
+frase: `'Eres Marcos, asistente virtual.'`. Sin reglas, sin catálogo y sin
+restricciones, el modelo se comporta como un asistente genérico.
+
+Ocurría porque la ruta era relativa (`readFileSync('instrucciones.txt')`), que
+Node resuelve contra el **directorio de trabajo del proceso**, no contra el del
+script. Si PM2 arrancó el bot desde otro sitio, no lo encuentra. Y el error se
+tragaba en un `catch` vacío, así que no aparecía en ningún log.
+
+**Comprobar.** En `pm2 logs ai-bot`, al arrancar debe salir:
+
+```
+📄 instrucciones.txt cargado (2042 bytes)
+```
+
+Si en su lugar sale `🚨 NO se pudo leer ...`, es esto. El mensaje incluye la
+ruta donde lo buscaba.
+
+También se puede ver el directorio desde el que corre el proceso:
+
+```bash
+pm2 describe ai-bot | grep -i "exec cwd\|script path"
+```
+
+**Solución.** Ya está corregido: la ruta se deriva de la ubicación del propio
+`index.js`, así que funciona sea cual sea el directorio de arranque. Si aparece
+el aviso, comprueba que `instrucciones.txt` está junto a `index.js`.
+
+> **Por qué importa más de lo que parece.** Con el prompt de reserva, el bot
+> atiende a clientes reales sin ninguna restricción: puede inventar precios,
+> hablar de lo que sea y contar qué modelo hay detrás. Además la regla que
+> devuelve `[HUMAN_HANDOFF]` tampoco está, así que solo funciona el atajo de
+> escribir exactamente "agente".
+
+---
+
+## El cliente pide agente y la conversación no llega a la bandeja
+
+**Síntoma.** El bot responde "Te comunico con uno de nuestros asesores", la
+conversación desaparece del bot, pero el agente no la ve.
+
+**Causa.** El traspaso son **dos pasos** y solo se hacía uno. Poner la
+conversación en `open` la saca de la cola del bot, pero si nadie la tiene
+asignada, Chatwoot la deja en **"Sin asignar"** — que no es la vista que un
+agente mira por defecto ("Míos").
+
+**Comprobar.** En Chatwoot, cambia el filtro de la bandeja a "Sin asignar": si
+las conversaciones están ahí, es esto.
+
+Desde el servidor:
+
+```bash
+sudo docker exec chatwoot-rails-1 bundle exec rails runner "
+Conversation.where(status: :open).last(5).each { |c|
+  puts \"##{c.display_id}  asignada_a=#{c.assignee_id.inspect}  equipo=#{c.team_id.inspect}\"
+}"
+```
+
+Un `asignada_a=nil` confirma el diagnóstico.
+
+**Solución.** Definir a quién se asigna, en el `.env` del bot:
+
+```bash
+# Ver los ids disponibles
+sudo docker exec chatwoot-rails-1 bundle exec rails runner \
+  "Account.find(2).users.each { |u| puts \"#{u.id}  #{u.email}\" }"
+sudo docker exec chatwoot-rails-1 bundle exec rails runner \
+  "Account.find(2).teams.each { |t| puts \"#{t.id}  #{t.name}\" }"
+```
+
+Luego `CHATWOOT_HANDOFF_ASSIGNEE_ID` (o `CHATWOOT_HANDOFF_TEAM_ID`) en
+`/home/ubuntu/api/.env` y `pm2 restart ai-bot --update-env`.
+
+**Alternativa sin tocar el bot.** Activar el reparto automático en la Inbox:
+Settings → Inboxes → ventas → Collaborators → *Enable auto assignment*. Chatwoot
+reparte entonces las conversaciones abiertas entre los agentes disponibles. Es
+más cómodo con varios agentes; la variable es más predecible con uno solo.
+
+---
+
+## El QR se escanea pero WhatsApp dice que no se puede vincular
+
+**Síntoma.** El código aparece, el teléfono lo lee, y responde que no se pudo
+vincular el dispositivo.
+
+**Causa 1: el código ya había caducado.** Un QR de WhatsApp vive unos 20-30
+segundos, bastante menos de lo que parece. Si la pantalla lo refresca más
+despacio que eso, casi siempre se escanea uno muerto. El panel lo renueva cada
+18 s por este motivo.
+
+**Causa 2: Evolution agotó su cupo.** Cada sesión de emparejamiento emite un
+número limitado de códigos (`QRCODE_LIMIT`). Al alcanzarlo sigue devolviendo un
+QR, pero ya no vincula. El panel muestra el contador y avisa a partir del
+cuarto.
+
+**Solución.** Reiniciar la instancia para arrancar una sesión limpia — botón
+"Reiniciar instancia" en el diálogo del QR, o desde el servidor:
+
+```bash
+curl -s -X POST "http://localhost:8080/instance/restart/ventas" \
+  -H "apikey: $EVOLUTION_API_KEY"
+# Evolution 1.x usa PUT en lugar de POST
+```
+
+Si tras reiniciar sigue sin vincular, comprueba el estado antes de insistir:
+
+```bash
+curl -s "http://localhost:8080/instance/connectionState/ventas" \
+  -H "apikey: $EVOLUTION_API_KEY"
+```
+
+Un `state: "connecting"` permanente suele significar que la sesión anterior no
+se cerró bien: haz `DELETE /instance/logout/ventas` y vuelve a empezar.
+
+---
+
 ## El bot no recibe mensajes nuevos
 
 **Síntoma.** Los mensajes llegan a Chatwoot (se ven en el panel web) pero el bot
@@ -125,31 +423,97 @@ no reacciona. Nada aparece en `pm2 logs ai-bot`.
 conversaciones nacen abiertas en lugar de pendientes, y Chatwoot solo dispara el
 AgentBot sobre conversaciones pendientes.
 
-**Solución.**
+**Solución.** Ver *Cómo cambiar la configuración de Chatwoot en Evolution* más
+abajo: `conversationPending` se corrige con la misma receta que cualquier otro
+campo.
+
+`conversationPending` solo afecta a conversaciones **nuevas**. Las que ya están
+abiertas siguen abiertas, así que para comprobar el arreglo hay que resolver la
+conversación en Chatwoot o escribir desde un número que no haya escrito antes.
+
+---
+
+## Evolution no entrega los mensajes salientes de Chatwoot
+
+**Síntoma.** Los mensajes entran a Chatwoot con normalidad, pero los que salen
+—los del bot y los que escribe un agente a mano— se quedan ahí y nunca llegan al
+WhatsApp del cliente. En Sidekiq, el `WebhookJob` hacia
+`http://evo-api:8080/chatwoot/webhook/ventas` falla a los 5 s con
+`Net::ReadTimeout`.
+
+**Causa.** La `url` que Evolution tiene guardada para Chatwoot no es alcanzable
+**desde dentro del contenedor de Evolution**. El caso más traicionero es
+apuntarla a la **IP pública de la instancia EC2**: parece razonable, la ves
+funcionar desde el navegador, y desde dentro del contenedor no funciona nunca.
+AWS **no hace hairpin NAT** hacia la IP pública de la propia instancia, así que
+esa conexión sale al gateway de internet y no vuelve.
+
+**Comprobar.**
 
 ```bash
-# Verificar
-curl -s "http://localhost:8080/chatwoot/find/ventas" \
-  -H "apikey: $EVOLUTION_API_KEY"
-
-# Corregir
-curl -s -X POST "http://localhost:8080/chatwoot/set/ventas" \
-  -H "apikey: $EVOLUTION_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "enabled": true,
-    "accountId": "2",
-    "token": "'"$INBOX_TOKEN"'",
-    "url": "http://172.17.0.1:3000",
-    "nameInbox": "ventas",
-    "signMsg": false,
-    "reopenConversation": true,
-    "conversationPending": true
-  }'
+EK=$(grep '^EVOLUTION_API_KEY' /home/ubuntu/aimanagement/server/.env | cut -d= -f2-)
+curl -s "http://localhost:8080/chatwoot/find/ventas" -H "apikey: $EK"; echo
 ```
 
-El `POST /chatwoot/set` **reemplaza la configuración completa**, no hace merge:
-envía siempre todos los campos, incluido `token`, o perderás los que omitas.
+Si `url` es una IP pública, es esto. Y para confirmarlo sin adivinar, se prueba
+desde dentro del propio contenedor:
+
+```bash
+sudo docker exec evo-api node -e 'fetch("http://chatwoot-rails-1:3000/").then(r=>console.log("OK HTTP "+r.status)).catch(e=>console.log("FALLA "+(e.cause?.code||e.message)))'
+```
+
+**Solución.** Usar el **nombre del contenedor**, no una IP. `evo-api` y Chatwoot
+comparten la red `chatwoot_default`, así que el DNS interno de Docker resuelve
+`chatwoot-rails-1` sin pasar por ninguna gateway — y sobrevive a que Docker
+recree sus redes, que es justo lo que rompe las IPs literales:
+
+```
+url: http://chatwoot-rails-1:3000
+```
+
+Si los contenedores no comparten red, se conectan una vez y ya:
+
+```bash
+sudo docker network connect chatwoot_default evo-api
+```
+
+---
+
+## Cómo cambiar la configuración de Chatwoot en Evolution
+
+`POST /chatwoot/set` **reemplaza el objeto entero**, no hace merge: los campos
+que omitas se pierden. Y no se puede reenviar tal cual lo que devuelve
+`/chatwoot/find`, porque `find` devuelve `null` en los campos vacíos y el
+esquema de `set` los rechaza:
+
+```json
+{"status":400,"error":"Bad Request",
+ "response":{"message":[["daysLimitImportMessages is not of a type(s) number"]]}}
+```
+
+La receta que funciona: leer la configuración actual, quitar los nulos y el
+`webhook_url` (que es derivado), cambiar solo lo que interese, y reenviarla
+completa.
+
+```bash
+EK=$(grep '^EVOLUTION_API_KEY' /home/ubuntu/aimanagement/server/.env | cut -d= -f2-)
+
+curl -s http://localhost:8080/chatwoot/find/ventas -H "apikey: $EK" \
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const c=JSON.parse(s);
+      delete c.webhook_url;
+      for (const k of Object.keys(c)) if (c[k]===null) delete c[k];
+      c.url="http://chatwoot-rails-1:3000";     // <- lo que quieras cambiar
+      c.conversationPending=true;
+      console.log(JSON.stringify(c));
+    })' > /tmp/cw.json
+
+curl -s -X POST http://localhost:8080/chatwoot/set/ventas -H "apikey: $EK" \
+  -H 'Content-Type: application/json' -d @/tmp/cw.json; echo
+```
+
+Leer y reenviar en vez de escribir el JSON a mano evita las dos formas de
+romperlo: omitir un campo, y transcribir mal el token de la inbox.
 
 ---
 
@@ -235,6 +599,15 @@ mensaje es la confirmación directa.
 **Solución.** Levantar Redis y reiniciar el bot. Nota que el bot **solo intenta
 conectar al arrancar**: si Redis vuelve después, el bot no se reconecta solo y hay
 que reiniciarlo con `pm2 restart ai-bot`.
+
+> **Antes el bot ni siquiera arrancaba sin Redis.** `node-redis` reintenta la
+> conexión indefinidamente por defecto, y mientras tanto `connect()` no resuelve
+> ni rechaza. Como esa llamada está en el nivel superior del módulo, el proceso
+> se quedaba colgado **antes** de escuchar en el 5000: PM2 lo mostraba "online"
+> y no respondía a nada. Ahora se rinde tras tres intentos y arranca sin
+> memoria, que es la degradación prevista.
+
+Si Redis escucha en otro sitio, `REDIS_URL` en el `.env` lo redirige.
 
 ---
 

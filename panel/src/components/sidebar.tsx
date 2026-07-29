@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 
-import { Mark } from "@/components/mark";
 import { UserBubble, UserMenu } from "@/components/user-menu";
+import { Monogram, Wordmark } from "@/components/wordmark";
 import {
   HEALTH_SUMMARY_LABELS,
   summarizeHealth,
@@ -152,18 +152,13 @@ export function SidebarRail({ email }: { email?: string | null }) {
           <Link
             href="/"
             className="flex h-full min-w-0 flex-1 items-center"
-            aria-label="AI Management — ir al dashboard"
+            aria-label="x1Aoshy API Panel — ir al dashboard"
           >
             <span className="flex w-16 shrink-0 items-center justify-center">
-              <Mark />
+              <Monogram />
             </span>
-            <span
-              className={cn(
-                LABEL_CLASSES,
-                "font-medium tracking-tight text-foreground"
-              )}
-            >
-              AI Management
+            <span className={cn(LABEL_CLASSES, "pr-2")}>
+              <Wordmark />
             </span>
           </Link>
 
@@ -311,11 +306,8 @@ export function MobileTopBar({ email }: { email?: string | null }) {
           <MenuGlyph />
         </button>
 
-        <Link href="/" className="flex min-w-0 items-center gap-2.5">
-          <Mark />
-          <span className="truncate text-sm font-medium tracking-tight">
-            AI Management
-          </span>
+        <Link href="/" className="flex min-w-0 items-center">
+          <Wordmark className="truncate" />
         </Link>
 
         <span
@@ -339,11 +331,8 @@ export function MobileTopBar({ email }: { email?: string | null }) {
           />
 
           <div className="animate-rise absolute inset-y-0 left-0 flex w-64 flex-col border-r border-border-strong bg-background">
-            <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-border px-5">
-              <Mark />
-              <span className="text-sm font-medium tracking-tight">
-                AI Management
-              </span>
+            <div className="flex h-14 shrink-0 items-center border-b border-border px-5">
+              <Wordmark />
             </div>
 
             <nav className="flex-1 overflow-y-auto py-2">

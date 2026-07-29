@@ -5,9 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 export interface AgentDataState<T> {
   data: T | null;
   error: string | null;
-  /** Solo la primera carga: los refrescos posteriores no vacían la pantalla. */
+  /** Solo la primera carga, cuando aún no hay nada que enseñar. */
   loading: boolean;
-  /** Hay una petición en vuelo sobre datos que ya se están mostrando. */
+  /**
+   * Hay una petición en vuelo teniendo ya datos en pantalla.
+   *
+   * Se separa de `loading` para que un refresco anime el botón en lugar de
+   * sustituir la vista por un esqueleto: parpadear el contenido entero en cada
+   * actualización es peor que no indicar nada.
+   */
   refreshing: boolean;
   /** Código HTTP del último fallo; 503 significa "panel sin configurar". */
   status: number | null;
@@ -77,6 +83,12 @@ export function useAgentData<T>(
     async function load() {
       if (inFlight) return;
       inFlight = true;
+
+      // Marca el refresco solo si ya hay algo en pantalla; en la primera carga
+      // manda `loading` y el esqueleto.
+      setState((current) =>
+        current.loading ? current : { ...current, refreshing: true }
+      );
 
       try {
         const response = await fetch(path, {

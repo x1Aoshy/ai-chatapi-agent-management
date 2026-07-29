@@ -90,12 +90,18 @@ Todos bajo `/api`, todos exigen `Authorization: Bearer <PANEL_API_KEY>`.
 | `PUT` | `/instructions` | Escribir (archiva la versión anterior) |
 | `GET` | `/instructions/versions` | Historial |
 | `POST` | `/instructions/rollback` | Restaurar una versión |
+| `DELETE` | `/instructions/versions/:id` | Eliminar una versión del historial |
 | `GET` | `/env` | Leer `.env` con los secretos enmascarados |
 | `PUT` | `/env` | Actualizar variables de la lista blanca |
 | `POST` | `/restart` | `pm2 restart ai-bot --update-env` |
 | `GET` | `/logs` | Últimas N líneas de PM2 |
+| `GET` | `/logs/stream` | Logs en tiempo real (Server-Sent Events) |
+| `POST` | `/logs/clear` | Vaciar los logs (`pm2 flush`) |
 | `GET` | `/whatsapp/state` | Estado de la conexión de WhatsApp |
-| `POST` | `/whatsapp/connect` | Generar QR de vinculación |
+| `GET` | `/whatsapp/qr` | Generar QR de vinculación |
+| `POST` | `/whatsapp/connect` | Igual que `/whatsapp/qr` (compatibilidad) |
+| `POST` | `/whatsapp/logout` | Cerrar la sesión de WhatsApp |
+| `POST` | `/whatsapp/restart` | Reiniciar la instancia de Evolution |
 | `GET` | `/redis/conversations` | Memoria por conversación |
 | `DELETE` | `/redis/conversations/:id` | Borrar la memoria de una conversación |
 
@@ -144,9 +150,19 @@ a `path.join`.
 `/api/health` colgado justo cuando Redis está caído — es decir, cuando más
 falta hace el dashboard.
 
-**Límite de peticiones.** 120/min en general, 3/min en `/restart` y 5/min en
-`/whatsapp/connect`. El reinicio corta el servicio unos segundos y el QR
-equivale a una sesión de WhatsApp.
+**Límite de peticiones.** 120/min en general, 3/min en `/restart`,
+`/whatsapp/logout` y `/logs/clear`, 5/min en el QR. El reinicio corta el servicio unos segundos,
+el QR equivale a una sesión de WhatsApp, el logout deja al bot incomunicado
+hasta que alguien escanee un código nuevo, y `pm2 flush` trunca los archivos sin
+archivarlos: destruye justo el historial que hace falta para diagnosticar un
+incidente.
+
+**Logs en tiempo real.** `/logs/stream` sigue el crecimiento de los archivos de
+PM2 sondeando su tamaño cada segundo, en vez de `fs.watch`: watch se comporta
+distinto según el sistema de archivos y puede perder eventos o duplicarlos.
+Detecta la rotación (`pm2 flush`) porque el archivo encoge, y en ese caso vuelve
+a leer desde cero. Un latido cada 15 s mantiene viva la conexión frente a
+proxies que cortan por inactividad.
 
 ---
 

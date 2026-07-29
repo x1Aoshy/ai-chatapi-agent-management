@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { Mark } from "@/components/mark";
 import { Button } from "@/components/ui/button";
+import { Wordmark } from "@/components/wordmark";
 
 /**
  * 404 global. Vive en la raíz y no dentro de `(app)` para que también cubra a
@@ -16,7 +16,7 @@ export default function NotFound() {
       />
 
       <div className="relative max-w-sm space-y-4">
-        <Mark className="mx-auto size-5" />
+        <Wordmark className="block" />
         <p className="num text-5xl tracking-tight text-muted-foreground">404</p>
         <div className="space-y-1.5">
           <h1 className="text-base font-medium tracking-tight">

@@ -70,8 +70,15 @@ export interface WhatsAppState {
 }
 
 export interface WhatsAppQr {
-  /** data:image/png;base64,... */
-  base64: string;
+  /** PNG ya renderizado por Evolution, con su propia paleta. Respaldo. */
+  base64: string | null;
+  /** Texto en crudo del código. NO sirve para redibujarlo: ver whatsapp-card. */
+  code: string | null;
+  /**
+   * Cuántos QR lleva emitidos Evolution en esta sesión de emparejamiento.
+   * Hay un tope: al alcanzarlo deja de emitir códigos válidos.
+   */
+  count: number | null;
 }
 
 export interface LogLine {

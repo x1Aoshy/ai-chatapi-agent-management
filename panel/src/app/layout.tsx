@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 
 import { ThemeProvider, THEME_STORAGE_KEY } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -10,6 +10,19 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+});
+
+/**
+ * Fuente de display, solo para la marca.
+ *
+ * Space Grotesk tiene carácter suficiente para funcionar como logotipo sin
+ * romper la sobriedad del resto: la interfaz sigue siendo Inter.
+ */
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+  weight: ["500", "700"],
 });
 
 /*
@@ -26,8 +39,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "AI Management",
-    template: "%s · AI Management",
+    default: "x1Aoshy API Panel",
+    template: "%s · x1Aoshy API Panel",
   },
   description: "Panel de administración del asistente de WhatsApp.",
 };
@@ -61,7 +74,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <head>
